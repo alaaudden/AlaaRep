@@ -88,6 +88,20 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
       </div>
 
       <div class="flex items-center gap-3 no-print">
+        <!-- Button 1: Upload Baseline -->
+        <label class="cursor-pointer inline-flex items-center px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-xs font-semibold text-slate-200 transition shadow-xs gap-1.5">
+          <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span>Upload Baseline</span>
+          <input type="file" id="dashBaselineFile" accept=".xer" class="hidden" onchange="uploadDashboardBaseline(this)">
+        </label>
+
+        <!-- Button 2: Upload Update -->
+        <label class="cursor-pointer inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-md text-xs font-semibold text-white transition shadow-xs gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <span>Upload Update</span>
+          <input type="file" id="dashUpdateFile" accept=".xer" class="hidden" onchange="uploadDashboardUpdate(this)">
+        </label>
+
         <button onclick="window.print()" class="inline-flex items-center px-3.5 py-1.5 border border-slate-700 rounded-md text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 transition">
           <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -472,6 +486,43 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
           }}
         }}
       }}
+    }}
+
+    async function uploadDashboardBaseline(input) {{
+      if (!input.files || !input.files[0]) return;
+      const fd = new FormData();
+      fd.append('baseline', input.files[0]);
+      try {{
+        const res = await fetch('/api/upload-baseline', {{ method: 'POST', body: fd }});
+        if (res.ok) {{
+          alert('Baseline updated successfully! You can now upload weekly updates.');
+        }} else {{
+          const err = await res.json();
+          alert('Error: ' + (err.detail || 'Failed to upload baseline'));
+        }}
+      }} catch (e) {{
+        alert('Upload failed: ' + e.message);
+      }}
+      input.value = '';
+    }}
+
+    async function uploadDashboardUpdate(input) {{
+      if (!input.files || !input.files[0]) return;
+      const fd = new FormData();
+      fd.append('update', input.files[0]);
+      try {{
+        const res = await fetch('/api/upload-update', {{ method: 'POST', body: fd }});
+        if (res.ok) {{
+          const data = await res.json();
+          window.location.href = `/api/dashboard/update/${{data.update_id}}`;
+        }} else {{
+          const err = await res.json();
+          alert('Error: ' + (err.detail || 'Failed to process update'));
+        }}
+      }} catch (e) {{
+        alert('Upload failed: ' + e.message);
+      }}
+      input.value = '';
     }}
   </script>
 </body>

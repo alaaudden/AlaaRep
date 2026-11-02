@@ -110,6 +110,8 @@ class TestAppEndpoints(unittest.TestCase):
         res = self.client.get("/api/dashboard/update/1")
         self.assertEqual(res.status_code, 200)
         self.assertIn("Project S-Curve", res.text)
+        self.assertIn("Upload Baseline", res.text)
+        self.assertIn("Upload Update", res.text)
 
         # Dashboard for non-existent update
         res = self.client.get("/api/dashboard/update/999")

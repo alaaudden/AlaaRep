@@ -191,6 +191,145 @@ namespace AlaaRep.Spreadsheet.Core.Models
             DataChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        public void InsertRow(int rowIndex)
+        {
+            if (rowIndex < 0) return;
+
+            // Shift rows down from MaxOccupiedRow down to rowIndex
+            var rowsToShift = _rows.Keys.Where(r => r >= rowIndex).OrderByDescending(r => r).ToList();
+            foreach (var r in rowsToShift)
+            {
+                var rowData = _rows[r];
+                _rows.Remove(r);
+                _rows[r + 1] = rowData;
+            }
+
+            // Shift custom row heights
+            var heightsToShift = _customRowHeights.Keys.Where(r => r >= rowIndex).OrderByDescending(r => r).ToList();
+            foreach (var r in heightsToShift)
+            {
+                double h = _customRowHeights[r];
+                _customRowHeights.Remove(r);
+                _customRowHeights[r + 1] = h;
+            }
+
+            RecalculateBounds();
+            DataChanged?.Invoke(this, EventArgs.Empty);
+            LayoutChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void DeleteRow(int rowIndex)
+        {
+            if (rowIndex < 0) return;
+
+            // Remove target row
+            _rows.Remove(rowIndex);
+            _customRowHeights.Remove(rowIndex);
+
+            // Shift rows up from rowIndex + 1 upwards
+            var rowsToShift = _rows.Keys.Where(r => r > rowIndex).OrderBy(r => r).ToList();
+            foreach (var r in rowsToShift)
+            {
+                var rowData = _rows[r];
+                _rows.Remove(r);
+                _rows[r - 1] = rowData;
+            }
+
+            // Shift custom row heights
+            var heightsToShift = _customRowHeights.Keys.Where(r => r > rowIndex).OrderBy(r => r).ToList();
+            foreach (var r in heightsToShift)
+            {
+                double h = _customRowHeights[r];
+                _customRowHeights.Remove(r);
+                _customRowHeights[r - 1] = h;
+            }
+
+            RecalculateBounds();
+            DataChanged?.Invoke(this, EventArgs.Empty);
+            LayoutChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void InsertColumn(int colIndex)
+        {
+            if (colIndex < 0) return;
+
+            // Shift all cells in every row with col >= colIndex to the right
+            foreach (var rowDict in _rows.Values)
+            {
+                var colsToShift = rowDict.Keys.Where(c => c >= colIndex).OrderByDescending(c => c).ToList();
+                foreach (var c in colsToShift)
+                {
+                    var cell = rowDict[c];
+                    rowDict.Remove(c);
+                    rowDict[c + 1] = cell;
+                }
+            }
+
+            // Shift custom column widths
+            var widthsToShift = _customColWidths.Keys.Where(c => c >= colIndex).OrderByDescending(c => c).ToList();
+            foreach (var c in widthsToShift)
+            {
+                double w = _customColWidths[c];
+                _customColWidths.Remove(c);
+                _customColWidths[c + 1] = w;
+            }
+
+            // Shift custom column headers
+            var headersToShift = _customColumnHeaders.Keys.Where(c => c >= colIndex).OrderByDescending(c => c).ToList();
+            foreach (var c in headersToShift)
+            {
+                string title = _customColumnHeaders[c];
+                _customColumnHeaders.Remove(c);
+                _customColumnHeaders[c + 1] = title;
+            }
+
+            RecalculateBounds();
+            DataChanged?.Invoke(this, EventArgs.Empty);
+            LayoutChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void DeleteColumn(int colIndex)
+        {
+            if (colIndex < 0) return;
+
+            // Remove target column in every row and shift higher columns left
+            foreach (var rowDict in _rows.Values)
+            {
+                rowDict.Remove(colIndex);
+                var colsToShift = rowDict.Keys.Where(c => c > colIndex).OrderBy(c => c).ToList();
+                foreach (var c in colsToShift)
+                {
+                    var cell = rowDict[c];
+                    rowDict.Remove(c);
+                    rowDict[c - 1] = cell;
+                }
+            }
+
+            // Shift custom column widths
+            _customColWidths.Remove(colIndex);
+            var widthsToShift = _customColWidths.Keys.Where(c => c > colIndex).OrderBy(c => c).ToList();
+            foreach (var c in widthsToShift)
+            {
+                double w = _customColWidths[c];
+                _customColWidths.Remove(c);
+                _customColWidths[c - 1] = w;
+            }
+
+            // Shift custom column headers
+            _customColumnHeaders.Remove(colIndex);
+            var headersToShift = _customColumnHeaders.Keys.Where(c => c > colIndex).OrderBy(c => c).ToList();
+            foreach (var c in headersToShift)
+            {
+                string title = _customColumnHeaders[c];
+                _customColumnHeaders.Remove(c);
+                _customColumnHeaders[c - 1] = title;
+            }
+
+            RecalculateBounds();
+            DataChanged?.Invoke(this, EventArgs.Empty);
+            LayoutChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         public void ClearRange(CellRange range, bool clearValues = true, bool clearFormats = true)
         {
             for (int r = range.Top; r <= range.Bottom; r++)

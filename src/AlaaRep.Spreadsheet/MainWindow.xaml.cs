@@ -183,13 +183,13 @@ namespace AlaaRep.Spreadsheet
             var active = SpreadsheetGrid.Selection.ActiveCell;
             string text = TxtActiveCellValue.Text;
 
-            if (double.TryParse(text, out double d))
+            object? oldVal = _document.ActiveSheet.GetCellValue(active.Row, active.Column);
+            object? newVal = double.TryParse(text, out double d) ? d : (string.IsNullOrEmpty(text) ? null : text);
+
+            if (!Equals(oldVal, newVal))
             {
-                _document.ActiveSheet.SetCellValue(active.Row, active.Column, d);
-            }
-            else
-            {
-                _document.ActiveSheet.SetCellValue(active.Row, active.Column, string.IsNullOrEmpty(text) ? null : text);
+                var cmd = new SetCellValueCommand(_document.ActiveSheet, active.Row, active.Column, oldVal, newVal);
+                SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
             }
 
             SpreadsheetGrid.InvalidateVisual();
@@ -250,6 +250,23 @@ namespace AlaaRep.Spreadsheet
             }
         }
 
+        // Undo / Redo
+        private void BtnUndo_Click(object sender, RoutedEventArgs e)
+        {
+            SpreadsheetGrid.UndoRedo.Undo();
+            SpreadsheetGrid.InvalidateVisual();
+            UpdateActiveCellInfo();
+            UpdateStatus();
+        }
+
+        private void BtnRedo_Click(object sender, RoutedEventArgs e)
+        {
+            SpreadsheetGrid.UndoRedo.Redo();
+            SpreadsheetGrid.InvalidateVisual();
+            UpdateActiveCellInfo();
+            UpdateStatus();
+        }
+
         // Clipboard
         private void BtnCopy_Click(object sender, RoutedEventArgs e)
         {
@@ -268,7 +285,8 @@ namespace AlaaRep.Spreadsheet
         private void ApplyFormat(Func<CellFormat, CellFormat> transform)
         {
             if (_document.ActiveSheet == null) return;
-            _document.ActiveSheet.ApplyFormatToRange(SpreadsheetGrid.Selection.SelectionRange, transform);
+            var cmd = new RangeFormatCommand(_document.ActiveSheet, SpreadsheetGrid.Selection.SelectionRange, transform);
+            SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
             SpreadsheetGrid.InvalidateVisual();
         }
 
@@ -355,7 +373,48 @@ namespace AlaaRep.Spreadsheet
         private void BtnClear_Click(object sender, RoutedEventArgs e)
         {
             if (_document.ActiveSheet == null) return;
-            _document.ActiveSheet.ClearRange(SpreadsheetGrid.Selection.SelectionRange, clearValues: true, clearFormats: false);
+            var cmd = new ClearRangeCommand(_document.ActiveSheet, SpreadsheetGrid.Selection.SelectionRange, clearValues: true, clearFormats: false);
+            SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
+            SpreadsheetGrid.InvalidateVisual();
+            UpdateStatus();
+        }
+
+        private void BtnInsertRow_Click(object sender, RoutedEventArgs e)
+        {
+            if (_document.ActiveSheet == null) return;
+            int row = SpreadsheetGrid.Selection.ActiveCell.Row;
+            var cmd = new InsertRowCommand(_document.ActiveSheet, row);
+            SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
+            SpreadsheetGrid.InvalidateVisual();
+            UpdateStatus();
+        }
+
+        private void BtnDeleteRow_Click(object sender, RoutedEventArgs e)
+        {
+            if (_document.ActiveSheet == null) return;
+            int row = SpreadsheetGrid.Selection.ActiveCell.Row;
+            var cmd = new DeleteRowCommand(_document.ActiveSheet, row);
+            SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
+            SpreadsheetGrid.InvalidateVisual();
+            UpdateStatus();
+        }
+
+        private void BtnInsertCol_Click(object sender, RoutedEventArgs e)
+        {
+            if (_document.ActiveSheet == null) return;
+            int col = SpreadsheetGrid.Selection.ActiveCell.Column;
+            var cmd = new InsertColumnCommand(_document.ActiveSheet, col);
+            SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
+            SpreadsheetGrid.InvalidateVisual();
+            UpdateStatus();
+        }
+
+        private void BtnDeleteCol_Click(object sender, RoutedEventArgs e)
+        {
+            if (_document.ActiveSheet == null) return;
+            int col = SpreadsheetGrid.Selection.ActiveCell.Column;
+            var cmd = new DeleteColumnCommand(_document.ActiveSheet, col);
+            SpreadsheetGrid.UndoRedo.ExecuteCommand(cmd);
             SpreadsheetGrid.InvalidateVisual();
             UpdateStatus();
         }

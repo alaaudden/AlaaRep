@@ -16,6 +16,7 @@ namespace AlaaRep.Spreadsheet.Controls
         private VirtualLayoutManager? _layoutManager;
         private readonly SelectionModel _selection = new();
         private readonly ClipboardService _clipboardService = new();
+        public UndoRedoManager UndoRedo { get; } = new();
 
         // Scrollbars
         private ScrollBar? _horizontalScrollBar;
@@ -723,6 +724,16 @@ namespace AlaaRep.Spreadsheet.Controls
                     _sheet?.ClearRange(_selection.SelectionRange, clearValues: true, clearFormats: false);
                     e.Handled = true;
                     break;
+                case Key.Z when ctrl:
+                    UndoRedo.Undo();
+                    InvalidateVisual();
+                    e.Handled = true;
+                    break;
+                case Key.Y when ctrl:
+                    UndoRedo.Redo();
+                    InvalidateVisual();
+                    e.Handled = true;
+                    break;
                 case Key.A when ctrl:
                     _selection.SelectAll(_sheet?.MaxOccupiedRow ?? 100, _sheet?.MaxOccupiedColumn ?? 25);
                     e.Handled = true;
@@ -1217,15 +1228,26 @@ namespace AlaaRep.Spreadsheet.Controls
 
             _isEditingHeader = true;
             _editingHeaderCol = col;
-            _headerComboBox.Text = _sheet.GetColumnHeader(col);
-            _headerComboBox.Visibility = Visibility.Visible;
 
-            // Immediately arrange the ComboBox to the exact position of the clicked column header
             var rect = GetColumnHeaderScreenRect(col);
+            _headerComboBox.Visibility = Visibility.Visible;
+            _headerComboBox.ApplyTemplate();
+            _headerComboBox.Measure(rect.Size);
             _headerComboBox.Arrange(rect);
+            _headerComboBox.Text = _sheet.GetColumnHeader(col);
             UpdateLayout();
 
-            _headerComboBox.Focus();
+            // Focus the editable text box inside the ComboBox and select its text
+            if (_headerComboBox.Template?.FindName("PART_EditableTextBox", _headerComboBox) is TextBox tb)
+            {
+                tb.Focus();
+                tb.SelectAll();
+            }
+            else
+            {
+                _headerComboBox.Focus();
+            }
+
             _headerComboBox.IsDropDownOpen = true;
         }
 
@@ -1234,7 +1256,12 @@ namespace AlaaRep.Spreadsheet.Controls
             if (!_isEditingHeader || _sheet == null || _headerComboBox == null) return;
 
             string newTitle = _headerComboBox.Text;
-            _sheet.SetColumnHeader(_editingHeaderCol, newTitle);
+            string oldTitle = _sheet.GetColumnHeader(_editingHeaderCol);
+            if (newTitle != oldTitle)
+            {
+                var cmd = new SetColumnHeaderCommand(_sheet, _editingHeaderCol, oldTitle, newTitle);
+                UndoRedo.ExecuteCommand(cmd);
+            }
 
             _isEditingHeader = false;
             _headerComboBox.Visibility = Visibility.Collapsed;
@@ -1300,13 +1327,13 @@ namespace AlaaRep.Spreadsheet.Controls
             string text = _editorTextBox.Text;
             var active = _selection.ActiveCell;
 
-            if (double.TryParse(text, out double dVal))
+            object? oldVal = _sheet.GetCellValue(active.Row, active.Column);
+            object? newVal = double.TryParse(text, out double dVal) ? dVal : (string.IsNullOrEmpty(text) ? null : text);
+
+            if (!Equals(oldVal, newVal))
             {
-                _sheet.SetCellValue(active.Row, active.Column, dVal);
-            }
-            else
-            {
-                _sheet.SetCellValue(active.Row, active.Column, string.IsNullOrEmpty(text) ? null : text);
+                var cmd = new SetCellValueCommand(_sheet, active.Row, active.Column, oldVal, newVal);
+                UndoRedo.ExecuteCommand(cmd);
             }
 
             _isEditing = false;

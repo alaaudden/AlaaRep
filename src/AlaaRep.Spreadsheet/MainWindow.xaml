@@ -52,6 +52,14 @@
 
                 <Separator Width="1" Margin="4,2" Background="#E0E0E0"/>
 
+                <!-- Undo / Redo Group -->
+                <StackPanel Orientation="Horizontal" Margin="6,0,12,0">
+                    <Button x:Name="BtnUndo" Content="↺ Undo" Click="BtnUndo_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Undo last action (Ctrl+Z)"/>
+                    <Button x:Name="BtnRedo" Content="↻ Redo" Click="BtnRedo_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Redo last action (Ctrl+Y)"/>
+                </StackPanel>
+
+                <Separator Width="1" Margin="4,2" Background="#E0E0E0"/>
+
                 <!-- Clipboard Group -->
                 <StackPanel Orientation="Horizontal" Margin="6,0,12,0">
                     <Button Content="📋 Copy" Click="BtnCopy_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Copy selected cells (Ctrl+C)"/>
@@ -135,6 +143,10 @@
                 <!-- Clear & Row/Col Actions -->
                 <StackPanel Orientation="Horizontal" Margin="6,0,4,0">
                     <Button Content="🧹 Clear" Click="BtnClear_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Clear cell values"/>
+                    <Button Content="➕ Row" Click="BtnInsertRow_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Insert row at selected row position"/>
+                    <Button Content="➖ Row" Click="BtnDeleteRow_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Delete selected row(s)"/>
+                    <Button Content="➕ Col" Click="BtnInsertCol_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Insert column at selected column position"/>
+                    <Button Content="➖ Col" Click="BtnDeleteCol_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Delete selected column(s)"/>
                     <Button Content="Auto-Fit Col" Click="BtnAutoFitCol_Click" Padding="6,5" Margin="2,0" Background="#FFFFFF" BorderBrush="#D1D1D1" ToolTip="Auto-fit column width to content"/>
                 </StackPanel>
 

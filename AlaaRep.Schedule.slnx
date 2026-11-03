@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AlaaRep.Schedule.Core/AlaaRep.Schedule.Core.csproj" />
+    <Project Path="src/AlaaRep.Schedule.Web/AlaaRep.Schedule.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AlaaRep.Schedule.Tests/AlaaRep.Schedule.Tests.csproj" />
+  </Folder>
+</Solution>

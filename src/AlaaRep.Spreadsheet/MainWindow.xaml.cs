@@ -36,6 +36,18 @@ namespace AlaaRep.Spreadsheet
 
             SpreadsheetGrid.ActiveCellChanged += SpreadsheetGrid_ActiveCellChanged;
             SpreadsheetGrid.EditCommitted += SpreadsheetGrid_EditCommitted;
+            SpreadsheetGrid.ZoomChanged += (s, e) =>
+            {
+                int pct = (int)Math.Round(SpreadsheetGrid.ZoomFactor * 100);
+                if (ZoomSlider != null && Math.Abs(ZoomSlider.Value - pct) > 1)
+                {
+                    ZoomSlider.Value = pct;
+                }
+                if (TxtZoomLevel != null)
+                {
+                    TxtZoomLevel.Text = $"{pct}%";
+                }
+            };
             _document.ActiveSheetChanged += (s, e) =>
             {
                 SpreadsheetGrid.Sheet = _document.ActiveSheet;
@@ -372,6 +384,39 @@ namespace AlaaRep.Spreadsheet
             SpreadsheetGrid.InvalidateVisual();
         }
 
+        // Zoom Handlers
+        private void ZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (SpreadsheetGrid != null)
+            {
+                double factor = Math.Round(e.NewValue / 100.0, 2);
+                if (Math.Abs(SpreadsheetGrid.ZoomFactor - factor) > 0.01)
+                {
+                    SpreadsheetGrid.ZoomFactor = factor;
+                }
+                if (TxtZoomLevel != null)
+                {
+                    TxtZoomLevel.Text = $"{(int)e.NewValue}%";
+                }
+            }
+        }
+
+        private void BtnZoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            if (ZoomSlider != null)
+            {
+                ZoomSlider.Value = Math.Min(ZoomSlider.Maximum, ZoomSlider.Value + 10);
+            }
+        }
+
+        private void BtnZoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            if (ZoomSlider != null)
+            {
+                ZoomSlider.Value = Math.Max(ZoomSlider.Minimum, ZoomSlider.Value - 10);
+            }
+        }
+
         // Sheet Tab Buttons
         private void SheetTabButton_Click(object sender, RoutedEventArgs e)
         {
@@ -393,10 +438,11 @@ namespace AlaaRep.Spreadsheet
             var sheet = _document.ActiveSheet;
             sheet.ClearAll();
 
-            // Set column headers
-            string[] headers = { "ID", "Customer", "Region", "Category", "Sales ($)", "Quantity", "Profit ($)", "Date" };
+            // Set custom column headers
+            string[] headers = { "Activity", "Cost", "Qty", "per %", "Duration", "Start Date", "Finish Date", "Status" };
             for (int c = 0; c < headers.Length; c++)
             {
+                sheet.SetColumnHeader(c, headers[c]);
                 sheet.SetCellValue(0, c, headers[c], notify: false);
                 sheet.SetCellFormat(0, c, new CellFormat { IsBold = true, BackgroundColorHex = "#FFE0E0E0" }, notify: false);
             }

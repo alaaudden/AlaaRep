@@ -1,12 +1,11 @@
 using System;
-using System.Collections.Generic;
 using AlaaRep.Spreadsheet.Core.Models;
 
 namespace AlaaRep.Spreadsheet.Core.Models
 {
     /// <summary>
     /// Manages coordinate mapping between cell row/columns and pixel positions.
-    /// Handles custom row heights and custom column widths.
+    /// Supports dynamic and custom row heights, column widths, and zoom scaling.
     /// </summary>
     public class VirtualLayoutManager
     {
@@ -15,77 +14,135 @@ namespace AlaaRep.Spreadsheet.Core.Models
         public double HeaderWidth { get; set; } = 48.0;
         public double HeaderHeight { get; set; } = 26.0;
 
+        public double ZoomFactor { get; set; } = 1.0;
+
         public VirtualLayoutManager(SheetDataModel sheet)
         {
             _sheet = sheet;
         }
 
-        public double GetRowTop(int row)
+        public double GetRowHeight(int row) => _sheet.GetRowHeight(row) * ZoomFactor;
+        public double GetColumnWidth(int col) => _sheet.GetColumnWidth(col) * ZoomFactor;
+
+        public double ScaledHeaderWidth => HeaderWidth;
+        public double ScaledHeaderHeight => HeaderHeight;
+
+        /// <summary>
+        /// Calculates the screen X position (relative to header edge) for a given column
+        /// considering all zoomed column widths starting from scrollCol.
+        /// </summary>
+        public double GetColumnOffsetFromScroll(int scrollCol, int targetCol)
         {
-            // For uniform heights, quick math:
-            // But we should support custom heights if any exist before this row
-            // We can calculate by accumulating custom heights
-            double top = 0;
-            // Quick optimization: if no custom row heights or row is large, compute
-            // Since custom rows are sparse in practical usage:
-            top = row * _sheet.DefaultRowHeight;
-            // Adjust for any custom rows before this row
-            // In SheetDataModel, custom rows can be tracked
-            return top;
+            if (targetCol == scrollCol) return 0;
+            if (targetCol < scrollCol)
+            {
+                double off = 0;
+                for (int c = targetCol; c < scrollCol; c++)
+                {
+                    off -= GetColumnWidth(c);
+                }
+                return off;
+            }
+            else
+            {
+                double off = 0;
+                for (int c = scrollCol; c < targetCol; c++)
+                {
+                    off += GetColumnWidth(c);
+                }
+                return off;
+            }
         }
 
-        public double GetRowHeight(int row) => _sheet.GetRowHeight(row);
-
-        public double GetColumnLeft(int col)
+        /// <summary>
+        /// Calculates the screen Y position (relative to header edge) for a given row
+        /// considering all zoomed row heights starting from scrollRow.
+        /// </summary>
+        public double GetRowOffsetFromScroll(int scrollRow, int targetRow)
         {
-            double left = col * _sheet.DefaultColumnWidth;
-            return left;
+            if (targetRow == scrollRow) return 0;
+            if (targetRow < scrollRow)
+            {
+                double off = 0;
+                for (int r = targetRow; r < scrollRow; r++)
+                {
+                    off -= GetRowHeight(r);
+                }
+                return off;
+            }
+            else
+            {
+                double off = 0;
+                for (int r = scrollRow; r < targetRow; r++)
+                {
+                    off += GetRowHeight(r);
+                }
+                return off;
+            }
         }
 
-        public double GetColumnWidth(int col) => _sheet.GetColumnWidth(col);
-
-        public int GetRowAtY(double y, out double rowTop, out double rowHeight)
+        /// <summary>
+        /// Finds the row at screen Y coordinate relative to the header edge.
+        /// </summary>
+        public int GetRowAtY(int scrollRow, double yOffset, out double rowY, out double rowH)
         {
-            if (y < 0) y = 0;
-            int row = (int)(y / _sheet.DefaultRowHeight);
-            if (row >= _sheet.TotalRowCount) row = _sheet.TotalRowCount - 1;
-            rowTop = row * _sheet.DefaultRowHeight;
-            rowHeight = _sheet.GetRowHeight(row);
-            return row;
+            if (yOffset <= 0)
+            {
+                rowY = 0;
+                rowH = GetRowHeight(scrollRow);
+                return scrollRow;
+            }
+
+            double currentY = 0;
+            int r = scrollRow;
+            while (r < _sheet.TotalRowCount)
+            {
+                double h = GetRowHeight(r);
+                if (currentY + h > yOffset)
+                {
+                    rowY = currentY;
+                    rowH = h;
+                    return r;
+                }
+                currentY += h;
+                r++;
+            }
+
+            rowY = currentY;
+            rowH = _sheet.DefaultRowHeight * ZoomFactor;
+            return _sheet.TotalRowCount - 1;
         }
 
-        public int GetColumnAtX(double x, out double colLeft, out double colWidth)
+        /// <summary>
+        /// Finds the column at screen X coordinate relative to the header edge.
+        /// </summary>
+        public int GetColumnAtX(int scrollCol, double xOffset, out double colX, out double colW)
         {
-            if (x < 0) x = 0;
-            int col = (int)(x / _sheet.DefaultColumnWidth);
-            if (col >= _sheet.TotalColumnCount) col = _sheet.TotalColumnCount - 1;
-            colLeft = col * _sheet.DefaultColumnWidth;
-            colWidth = _sheet.GetColumnWidth(col);
-            return col;
-        }
+            if (xOffset <= 0)
+            {
+                colX = 0;
+                colW = GetColumnWidth(scrollCol);
+                return scrollCol;
+            }
 
-        public (int firstRow, int lastRow) GetVisibleRowRange(double viewTop, double viewHeight)
-        {
-            int first = (int)(viewTop / _sheet.DefaultRowHeight);
-            int count = (int)Math.Ceiling(viewHeight / _sheet.DefaultRowHeight) + 2;
-            int last = first + count;
+            double currentX = 0;
+            int c = scrollCol;
+            while (c < _sheet.TotalColumnCount)
+            {
+                double w = GetColumnWidth(c);
+                if (currentX + w > xOffset)
+                {
+                    colX = currentX;
+                    colW = w;
+                    return c;
+                }
+                currentX += w;
+                c++;
+            }
 
-            if (first < 0) first = 0;
-            if (last >= _sheet.TotalRowCount) last = _sheet.TotalRowCount - 1;
-
-            return (first, last);
-        }
-
-        public (int firstCol, int lastCol) GetVisibleColumnRange(double viewLeft, double viewWidth)
-        {
-            int first = (int)(viewLeft / _sheet.DefaultColumnWidth);
-            int count = (int)Math.Ceiling(viewWidth / _sheet.DefaultColumnWidth) + 2;
-            int last = first + count;
-
-            if (first < 0) first = 0;
-            if (last >= _sheet.TotalColumnCount) last = _sheet.TotalColumnCount - 1;
-
-            return (first, last);
+            colX = currentX;
+            colW = _sheet.DefaultColumnWidth * ZoomFactor;
+            return _sheet.TotalColumnCount - 1;
         }
     }
 }

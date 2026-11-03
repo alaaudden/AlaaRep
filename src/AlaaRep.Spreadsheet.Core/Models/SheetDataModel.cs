@@ -17,6 +17,9 @@ namespace AlaaRep.Spreadsheet.Core.Models
         private readonly Dictionary<int, double> _customRowHeights = new();
         private readonly Dictionary<int, double> _customColWidths = new();
 
+        // Custom column header titles (col -> title)
+        private readonly Dictionary<int, string> _customColumnHeaders = new();
+
         public string Name { get; set; } = "Sheet1";
 
         public double DefaultRowHeight { get; set; } = 24.0;
@@ -59,6 +62,28 @@ namespace AlaaRep.Spreadsheet.Core.Models
         {
             if (width < 15) width = 15;
             _customColWidths[col] = width;
+            LayoutChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public string GetColumnHeader(int col)
+        {
+            if (_customColumnHeaders.TryGetValue(col, out string? custom) && !string.IsNullOrWhiteSpace(custom))
+            {
+                return custom;
+            }
+            return CellCoordinate.ColumnIndexToLetters(col);
+        }
+
+        public void SetColumnHeader(int col, string? title)
+        {
+            if (string.IsNullOrWhiteSpace(title) || title.Trim() == CellCoordinate.ColumnIndexToLetters(col))
+            {
+                _customColumnHeaders.Remove(col);
+            }
+            else
+            {
+                _customColumnHeaders[col] = title.Trim();
+            }
             LayoutChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -223,6 +248,7 @@ namespace AlaaRep.Spreadsheet.Core.Models
             _rows.Clear();
             _customRowHeights.Clear();
             _customColWidths.Clear();
+            _customColumnHeaders.Clear();
             MaxOccupiedRow = -1;
             MaxOccupiedColumn = -1;
             DataChanged?.Invoke(this, EventArgs.Empty);

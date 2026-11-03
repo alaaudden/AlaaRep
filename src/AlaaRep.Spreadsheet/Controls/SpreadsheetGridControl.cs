@@ -1211,7 +1211,7 @@ namespace AlaaRep.Spreadsheet.Controls
         // Header Title In-Place ComboBox Editing
         public void BeginHeaderEdit(int col)
         {
-            if (_sheet == null || _headerComboBox == null) return;
+            if (_sheet == null || _headerComboBox == null || _layoutManager == null) return;
 
             if (_isEditing) CommitEdit();
 
@@ -1219,10 +1219,14 @@ namespace AlaaRep.Spreadsheet.Controls
             _editingHeaderCol = col;
             _headerComboBox.Text = _sheet.GetColumnHeader(col);
             _headerComboBox.Visibility = Visibility.Visible;
+
+            // Immediately arrange the ComboBox to the exact position of the clicked column header
+            var rect = GetColumnHeaderScreenRect(col);
+            _headerComboBox.Arrange(rect);
+            UpdateLayout();
+
             _headerComboBox.Focus();
             _headerComboBox.IsDropDownOpen = true;
-
-            InvalidateArrange();
         }
 
         public void CommitHeaderEdit()

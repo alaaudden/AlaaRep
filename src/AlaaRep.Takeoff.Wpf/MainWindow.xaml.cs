@@ -831,13 +831,27 @@ public partial class MainWindow : Window
         _drawingPoints.Clear();
         _calibrationPoints.Clear();
 
-        TxtActiveToolHud.Text = tool;
-        TxtPromptHud.Text = (tool == "Length" || tool == "Area" || tool == "Zone")
-            ? "Click points, double-click to finish"
-            : (tool == "Calibrate" ? "Pick 2 points with known distance" : "");
+        if (TxtActiveToolHud != null)
+        {
+            TxtActiveToolHud.Text = tool;
+        }
 
-        if (tool == "Select") RbSelect.IsChecked = true;
-        RedrawCanvas();
+        if (TxtPromptHud != null)
+        {
+            TxtPromptHud.Text = (tool == "Length" || tool == "Area" || tool == "Zone")
+                ? "Click points, double-click to finish"
+                : (tool == "Calibrate" ? "Pick 2 points with known distance" : "");
+        }
+
+        if (tool == "Select" && RbSelect != null && RbSelect.IsChecked != true)
+        {
+            RbSelect.IsChecked = true;
+        }
+
+        if (DrawingCanvas != null)
+        {
+            RedrawCanvas();
+        }
     }
 
     private void BtnOpenPdf_Click(object sender, RoutedEventArgs e)

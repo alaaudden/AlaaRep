@@ -360,6 +360,7 @@ namespace AlaaRep.Schedule.Core.Models
 
         // Activities and Lookaheads
         public List<ActivityScheduleItem> Activities { get; set; } = new();
+        public List<ActivityScheduleItem> DetailedActivities { get; set; } = new();
         public List<LookaheadScheduleItem> LookaheadActivities { get; set; } = new();
 
         // Period Summary: What happened last period combined with coming tasks in current period

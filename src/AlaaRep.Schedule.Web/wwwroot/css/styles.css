@@ -220,6 +220,78 @@ body {
   border: 1px solid #fecaca;
 }
 
+/* Executive Summary Section */
+.executive-summary-section {
+  background-color: var(--bg-card);
+  padding: 1.25rem 1.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.exec-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.exec-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icon-tag-exec {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+}
+
+.exec-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.save-status-indicator {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--success);
+  margin-left: 0.5rem;
+}
+
+.exec-textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-main);
+  background-color: #f8fafc;
+  resize: vertical;
+  min-height: 90px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.exec-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  background-color: #ffffff;
+}
+
 /* Project Header Bar */
 .project-header-bar {
   display: flex;
@@ -1046,10 +1118,19 @@ body {
   .navbar-actions,
   .upload-dropzone,
   .toolbar-controls,
+  .exec-summary-actions,
   .period-filter-tabs,
   .lookahead-controls,
   .dashboard-footer {
     display: none !important;
+  }
+
+  .exec-textarea {
+    border: none;
+    background: transparent;
+    padding: 0;
+    font-size: 0.95rem;
+    resize: none;
   }
 
   .dashboard-container {

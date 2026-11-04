@@ -126,6 +126,40 @@ namespace AlaaRep.Schedule.Tests
         }
 
         [Fact]
+        public void Parse_TwoWorksheetStructure_ParsesSummaryAndDetailedPrimaveraActivities()
+        {
+            var generator = new SampleScheduleGenerator();
+            var parser = new ExcelScheduleParser();
+
+            var bytes = generator.GenerateSampleWorkbookBytes();
+            using var stream = new MemoryStream(bytes);
+
+            var summary = parser.Parse(stream);
+
+            Assert.NotNull(summary);
+            // Summary sheet powers MonthlySeries for histograms and S-curves
+            Assert.NotEmpty(summary.MonthlySeries);
+            Assert.Equal(17, summary.MonthlySeries.Count);
+
+            // Detailed sheet powers DetailedActivities
+            Assert.NotEmpty(summary.DetailedActivities);
+            var substationHookup = summary.DetailedActivities.FirstOrDefault(a => a.ActivityId == "A1020");
+            Assert.NotNull(substationHookup);
+            Assert.Equal("Water & Power Substation Hookup", substationHookup.ActivityName);
+            Assert.Equal("SCH.01.01", substationHookup.WbsCode);
+            Assert.True(substationHookup.IsCritical);
+
+            // Detailed activities feed Period Performance Summary and Lookahead
+            Assert.NotNull(summary.PeriodSummary);
+            Assert.NotEmpty(summary.PeriodSummary.Tasks);
+            Assert.NotEmpty(summary.LookaheadActivities);
+
+            // Verify lookahead contains detailed tasks
+            var lookaheadIds = summary.LookaheadActivities.Select(l => l.ActivityId).ToList();
+            Assert.Contains("A1020", lookaheadIds);
+        }
+
+        [Fact]
         public void Parse_InvalidWorksheet_ThrowsInformativeException()
         {
             using var stream = new MemoryStream();

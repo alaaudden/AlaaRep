@@ -7,6 +7,7 @@ let currentPeriodFilter = 'ALL';
 
 document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
+  initExecutiveSummary();
   loadDefaultData();
 });
 
@@ -125,6 +126,69 @@ function initEventListeners() {
   dropZone.addEventListener('click', () => {
     fileInput.click();
   });
+
+  // Executive summary buttons
+  const btnAutoDraft = document.getElementById('btnAutoDraftSummary');
+  if (btnAutoDraft) {
+    btnAutoDraft.addEventListener('click', generateDraftExecutiveSummary);
+  }
+
+  const btnSaveSummary = document.getElementById('btnSaveExecutiveSummary');
+  if (btnSaveSummary) {
+    btnSaveSummary.addEventListener('click', saveExecutiveSummary);
+  }
+}
+
+function initExecutiveSummary() {
+  const saved = localStorage.getItem('alaaRep_executiveSummary');
+  const txtArea = document.getElementById('txtExecutiveSummary');
+  if (saved && txtArea) {
+    txtArea.value = saved;
+  }
+}
+
+function saveExecutiveSummary() {
+  const txtArea = document.getElementById('txtExecutiveSummary');
+  const indicator = document.getElementById('saveStatusIndicator');
+  if (txtArea) {
+    localStorage.setItem('alaaRep_executiveSummary', txtArea.value);
+    if (indicator) {
+      indicator.textContent = 'Saved!';
+      setTimeout(() => { indicator.textContent = ''; }, 2500);
+    }
+  }
+}
+
+function generateDraftExecutiveSummary() {
+  if (!scheduleData) return;
+
+  const isUnits = currentMetricMode === 'units';
+  const spi = isUnits ? scheduleData.unitsSchedulePerformanceIndex : scheduleData.costSchedulePerformanceIndex;
+  const progress = isUnits ? scheduleData.overallUnitsProgressPercent : scheduleData.overallCostProgressPercent;
+  const vDays = scheduleData.projectVarianceDays || 0;
+  const delayedCount = scheduleData.delayedCount || 0;
+  const criticalCount = scheduleData.periodSummary ? scheduleData.periodSummary.criticalTasksCount : 0;
+  const comingScope = scheduleData.periodSummary ? (isUnits ? scheduleData.periodSummary.currentPeriodPlannedUnits : scheduleData.periodSummary.currentPeriodPlannedCost) : 0;
+  const comingLabel = scheduleData.periodSummary ? scheduleData.periodSummary.currentPeriodLabel : 'Current Period';
+
+  const fmtScope = isUnits ? Math.round(comingScope).toLocaleString() + ' units' : '$' + Math.round(comingScope).toLocaleString();
+
+  let healthStatus = spi >= 1.0 ? 'on schedule' : (spi >= 0.9 ? 'moderately delayed' : 'significantly delayed');
+  let varianceNote = vDays < 0 ? `${Math.abs(vDays)} days behind contractual finish` : (vDays > 0 ? `${vDays} days ahead of baseline` : 'aligned with baseline schedule');
+
+  const draft =
+`EXECUTIVE PROJECT ASSESSMENT & HIGHLIGHTS:
+- Overall project progress stands at ${progress.toFixed(1)}% with an aggregate Schedule Performance Index (SPI) of ${spi.toFixed(2)} (${healthStatus}).
+- Project completion forecast indicates ${varianceNote}.
+- Critical Path & Risk Areas: Identified ${delayedCount} delayed activities and ${criticalCount} critical path tasks requiring intensive supervision (specifically site mobilization utilities and mass excavation).
+- Lookahead & Coming Period Plan: Scheduled scope of ${fmtScope} planned for execution in ${comingLabel}. Primary focus on foundation preparation, substructure works, and municipal approvals.
+- Corrective Actions: Expedite crane access permits and coordinate subcontractor machinery deployments to recover schedule float.`;
+
+  const txtArea = document.getElementById('txtExecutiveSummary');
+  if (txtArea) {
+    txtArea.value = draft;
+    saveExecutiveSummary();
+  }
 }
 
 function updateModeLabels() {

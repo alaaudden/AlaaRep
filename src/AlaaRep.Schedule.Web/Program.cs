@@ -94,7 +94,10 @@ app.MapGet("/api/schedule/lookahead", (int days, EvmCalculationEngine engine) =>
         return Results.NotFound(new { error = "No schedule data loaded." });
     }
     var baseDate = currentSummary.DataDate ?? System.DateTime.Today;
-    var lookaheadItems = engine.CalculateLookahead(currentSummary.Activities, baseDate, days);
+    var sourceActivities = (currentSummary.DetailedActivities != null && currentSummary.DetailedActivities.Any())
+        ? currentSummary.DetailedActivities
+        : currentSummary.Activities;
+    var lookaheadItems = engine.CalculateLookahead(sourceActivities, baseDate, days);
     return Results.Ok(lookaheadItems);
 });
 

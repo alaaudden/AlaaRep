@@ -20,19 +20,68 @@ namespace AlaaRep.Schedule.Core.Services
         public ScheduleProjectSummary Parse(Stream excelStream, string? sheetName = null)
         {
             using var workbook = new XLWorkbook(excelStream);
-            IXLWorksheet worksheet;
 
+            // If a specific sheet was requested, parse just that worksheet
             if (!string.IsNullOrWhiteSpace(sheetName) && workbook.Worksheets.Contains(sheetName))
             {
-                worksheet = workbook.Worksheet(sheetName);
+                return ParseWorksheet(workbook.Worksheet(sheetName));
+            }
+
+            // Detect multi-sheet structure:
+            // Sheet 1: Summary Layout (with histograms/S-curves data)
+            // Sheet 2: Detailed Primavera export (with WBS indents, critical items, lookahead activities)
+            IXLWorksheet? summarySheet = null;
+            IXLWorksheet? detailedSheet = null;
+
+            if (workbook.Worksheets.Count > 1)
+            {
+                // Try finding by name heuristics
+                summarySheet = workbook.Worksheets.FirstOrDefault(w =>
+                    w.Name.ToLowerInvariant().Contains("summary") ||
+                    w.Name.ToLowerInvariant().Contains("layout") ||
+                    w.Name.ToLowerInvariant().Contains("overview"));
+
+                detailedSheet = workbook.Worksheets.FirstOrDefault(w =>
+                    w.Name.ToLowerInvariant().Contains("detail") ||
+                    w.Name.ToLowerInvariant().Contains("primavera") ||
+                    w.Name.ToLowerInvariant().Contains("activity") ||
+                    w.Name.ToLowerInvariant().Contains("p6"));
+
+                // Fallback to order: Sheet 1 = Summary, Sheet 2 = Detailed
+                if (summarySheet == null) summarySheet = workbook.Worksheets.First();
+                if (detailedSheet == null) detailedSheet = workbook.Worksheets.Skip(1).First();
             }
             else
             {
-                worksheet = workbook.Worksheets.FirstOrDefault()
+                summarySheet = workbook.Worksheets.FirstOrDefault()
                     ?? throw new InvalidOperationException("Excel workbook does not contain any worksheets.");
             }
 
-            return ParseWorksheet(worksheet);
+            // Parse Summary Sheet
+            var summaryResult = ParseWorksheet(summarySheet);
+
+            // If we have a detailed Primavera sheet, parse it and enrich the summary result:
+            // Detailed sheet feeds:
+            // 1) Period Performance & Upcoming Tasks Summary (with WBS details & action recommendations)
+            // 2) Lookahead Schedule Table (with individual activities)
+            if (detailedSheet != null)
+            {
+                var detailedResult = ParseWorksheet(detailedSheet);
+
+                // Use detailed activities for Lookahead and Period Performance Summary
+                var effectiveBaseDate = summaryResult.DataDate ?? DateTime.Today;
+                _calculationEngine.IdentifyCriticalActivities(detailedResult.Activities);
+                summaryResult.LookaheadActivities = _calculationEngine.CalculateLookahead(detailedResult.Activities, effectiveBaseDate, 30);
+                summaryResult.PeriodSummary = _calculationEngine.CalculatePeriodPerformanceSummary(detailedResult.Activities, summaryResult.MonthlySeries, summaryResult.DataDate);
+
+                // Keep detailed activities for lookahead and period performance views
+                if (detailedResult.Activities.Any())
+                {
+                    summaryResult.DetailedActivities = detailedResult.Activities;
+                }
+            }
+
+            return summaryResult;
         }
 
         public class TimelineColumnDef
@@ -98,7 +147,6 @@ namespace AlaaRep.Schedule.Core.Services
 
                 bool isEarnedSubRow = (string.IsNullOrWhiteSpace(id) || (currentActivity != null && id == currentActivity.ActivityId))
                                       && rowMetricText.Contains("earned");
-                bool isPlannedSubRow = rowMetricText.Contains("planned");
 
                 if (isEarnedSubRow && currentActivity != null)
                 {
@@ -174,6 +222,19 @@ namespace AlaaRep.Schedule.Core.Services
 
                 currentActivity = activity;
 
+                // WBS Code
+                if (columnMap.TryGetValue("wbs", out int wbsCol))
+                {
+                    activity.WbsCode = row.Cell(wbsCol).GetString().Trim();
+                }
+
+                // Critical Path indicator
+                if (columnMap.TryGetValue("critical", out int critCol))
+                {
+                    var cVal = row.Cell(critCol).GetString().Trim().ToLowerInvariant();
+                    activity.IsCritical = cVal == "yes" || cVal == "true" || cVal == "1" || cVal == "y";
+                }
+
                 // Schedule variance days
                 if (columnMap.TryGetValue("var_days", out int varCol))
                 {
@@ -232,7 +293,7 @@ namespace AlaaRep.Schedule.Core.Services
                 if (columnMap.TryGetValue("planned_units", out int pUnitsCol))
                     activity.PlannedUnitsToDate = TryGetDouble(row.Cell(pUnitsCol));
 
-                // Parse Timeline Columns (e.g. 1-Sep-26, 1-Oct-26, etc.)
+                // Parse Timeline Columns
                 int periodIndex = 1;
                 foreach (var tCol in timelineCols)
                 {
@@ -356,7 +417,6 @@ namespace AlaaRep.Schedule.Core.Services
                     }
                     else if (activity.BudgetAtCompletionCost > 0 && activity.BudgetAtCompletionUnits > 0)
                     {
-                        // Both BAC units and cost provided. If period costs are 0, scale proportionally
                         double costPerUnit = activity.BudgetAtCompletionCost / activity.BudgetAtCompletionUnits;
                         if (totalPCost == 0 && totalPUnits > 0)
                         {
@@ -422,13 +482,21 @@ namespace AlaaRep.Schedule.Core.Services
                 var norm = text.ToLowerInvariant().Replace("_", " ").Replace("-", " ");
                 var col = cell.Address.ColumnNumber;
 
-                if (Matches(norm, "activity id", "act id", "task id", "code", "wbs id", "activity code", "id"))
+                if (Matches(norm, "wbs", "wbs code", "wbs id"))
+                {
+                    map["wbs"] = col;
+                }
+                else if (Matches(norm, "activity id", "act id", "task id", "code", "activity code", "id"))
                 {
                     if (!map.ContainsKey("activity_id")) map["activity_id"] = col;
                 }
                 else if (Matches(norm, "activity name", "activity description", "task name", "description", "name", "activity"))
                 {
                     if (!map.ContainsKey("activity_name")) map["activity_name"] = col;
+                }
+                else if (Matches(norm, "critical", "is critical", "critical path"))
+                {
+                    map["critical"] = col;
                 }
                 else if (norm.Contains("var") || norm.Contains("variance"))
                 {
@@ -438,7 +506,7 @@ namespace AlaaRep.Schedule.Core.Services
                 {
                     map["schedule_pct"] = col;
                 }
-                else if (Matches(norm, "perform. %", "perform %", "performance %", "act %", "actual %", "earned %"))
+                else if (Matches(norm, "perform. %", "perform %", "performance %", "act %", "actual %", "earned %", "% complete", "percent complete"))
                 {
                     map["perform_pct"] = col;
                 }
@@ -500,7 +568,6 @@ namespace AlaaRep.Schedule.Core.Services
                 }
                 else
                 {
-                    // Check if it's a timeline periodic column: e.g. "1-Sep-26", "Sep-26", "Oct-26", "2026-09-01", "W1", "Week 1"
                     var colDate = TryParseDateHeader(text);
                     var weekNumMatch = Regex.Match(norm, @"(w|week|wk)\s*(\d+)", RegexOptions.IgnoreCase);
                     int weekNum = 0;
@@ -524,7 +591,6 @@ namespace AlaaRep.Schedule.Core.Services
                 }
             }
 
-            // If metric column wasn't explicitly named, look for column immediately preceding first timeline column
             if (!metricColIndex.HasValue && timelineCols.Any())
             {
                 var minTimelineCol = timelineCols.Min(c => c.ColumnIndex);

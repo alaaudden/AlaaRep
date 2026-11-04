@@ -11,9 +11,11 @@ namespace AlaaRep.Schedule.Core.Services
             using var stream = new MemoryStream();
             using (var workbook = new XLWorkbook())
             {
-                var ws = workbook.Worksheets.Add("Royat Al Ebtikar School");
+                // =========================================================================
+                // PAGE 1: Summary Layout (Used to produce histograms: monthly planned/earned values & S-Curves)
+                // =========================================================================
+                var wsSummary = workbook.Worksheets.Add("Summary Layout");
 
-                // Monthly periods from 1-Sep-26 to 1-Jan-28 matching user image
                 var months = new[]
                 {
                     "1-Sep-26", "1-Oct-26", "1-Nov-26", "1-Dec-26", "1-Jan-27", "1-Feb-27",
@@ -21,28 +23,28 @@ namespace AlaaRep.Schedule.Core.Services
                     "1-Sep-27", "1-Oct-27", "1-Nov-27", "1-Dec-27", "1-Jan-28"
                 };
 
-                // Column Headers matching the updated template image
-                ws.Cell(1, 1).Value = "Activity ID";
-                ws.Cell(1, 2).Value = "Activity Name";
-                ws.Cell(1, 3).Value = "Var (days)";
-                ws.Cell(1, 4).Value = "Schedule %";
-                ws.Cell(1, 5).Value = "Perform. %";
-                ws.Cell(1, 6).Value = "BAC Units";
-                ws.Cell(1, 7).Value = "BAC Cost ($)";
-                ws.Cell(1, 8).Value = "Planned Start";
-                ws.Cell(1, 9).Value = "Planned Finish";
-                ws.Cell(1, 10).Value = "Forecast Start";
-                ws.Cell(1, 11).Value = "Forecast Finish";
-                ws.Cell(1, 12).Value = ""; // Value Type indicator column ("Planned Value" / "Earned Value")
+                // Column Headers for Summary sheet
+                wsSummary.Cell(1, 1).Value = "Activity ID";
+                wsSummary.Cell(1, 2).Value = "Activity Name";
+                wsSummary.Cell(1, 3).Value = "Var (days)";
+                wsSummary.Cell(1, 4).Value = "Schedule %";
+                wsSummary.Cell(1, 5).Value = "Perform. %";
+                wsSummary.Cell(1, 6).Value = "BAC Units";
+                wsSummary.Cell(1, 7).Value = "BAC Cost ($)";
+                wsSummary.Cell(1, 8).Value = "Planned Start";
+                wsSummary.Cell(1, 9).Value = "Planned Finish";
+                wsSummary.Cell(1, 10).Value = "Forecast Start";
+                wsSummary.Cell(1, 11).Value = "Forecast Finish";
+                wsSummary.Cell(1, 12).Value = "Value Type";
 
                 int startCol = 13;
                 for (int m = 0; m < months.Length; m++)
                 {
-                    ws.Cell(1, startCol + m).Value = months[m];
+                    wsSummary.Cell(1, startCol + m).Value = months[m];
                 }
 
-                // Activities from the image with Planned Value and Earned Value rows
-                var items = new[]
+                // Summary items matching the exact image layout (with 2 rows per activity: Planned in blue, Earned in red)
+                var summaryItems = new[]
                 {
                     new {
                         Id = "SCH-001", Name = "Royat Al Ebtikar International School", Var = 0, Sched = 0.62, Perf = 0.61, BacUnits = 580000.0, Cost = 58000000.0,
@@ -148,65 +150,201 @@ namespace AlaaRep.Schedule.Core.Services
                     }
                 };
 
-                int row = 2;
-                foreach (var r in items)
+                int sRow = 2;
+                foreach (var r in summaryItems)
                 {
-                    // Row 1: Activity info + Planned Value
-                    ws.Cell(row, 1).Value = r.Id;
-                    ws.Cell(row, 2).Value = r.Name;
-                    ws.Cell(row, 2).Style.Alignment.Indent = r.Indent;
-                    if (r.Bold) ws.Cell(row, 2).Style.Font.Bold = true;
+                    // Row 1: Planned Value row
+                    wsSummary.Cell(sRow, 1).Value = r.Id;
+                    wsSummary.Cell(sRow, 2).Value = r.Name;
+                    wsSummary.Cell(sRow, 2).Style.Alignment.Indent = r.Indent;
+                    if (r.Bold) wsSummary.Cell(sRow, 2).Style.Font.Bold = true;
 
-                    ws.Cell(row, 3).Value = r.Var;
-                    ws.Cell(row, 4).Value = r.Sched;
-                    ws.Cell(row, 5).Value = r.Perf;
-                    ws.Cell(row, 6).Value = r.BacUnits;
-                    ws.Cell(row, 7).Value = r.Cost;
-                    ws.Cell(row, 8).Value = DateTime.Parse(r.Ps);
-                    ws.Cell(row, 9).Value = DateTime.Parse(r.Pf);
-                    ws.Cell(row, 10).Value = DateTime.Parse(r.Fs);
-                    ws.Cell(row, 11).Value = DateTime.Parse(r.Ff);
+                    wsSummary.Cell(sRow, 3).Value = r.Var;
+                    wsSummary.Cell(sRow, 4).Value = r.Sched;
+                    wsSummary.Cell(sRow, 5).Value = r.Perf;
+                    wsSummary.Cell(sRow, 6).Value = r.BacUnits;
+                    wsSummary.Cell(sRow, 7).Value = r.Cost;
+                    wsSummary.Cell(sRow, 8).Value = DateTime.Parse(r.Ps);
+                    wsSummary.Cell(sRow, 9).Value = DateTime.Parse(r.Pf);
+                    wsSummary.Cell(sRow, 10).Value = DateTime.Parse(r.Fs);
+                    wsSummary.Cell(sRow, 11).Value = DateTime.Parse(r.Ff);
 
-                    // Row 1 metric label: Planned Value
-                    var pCell = ws.Cell(row, 12);
+                    var pCell = wsSummary.Cell(sRow, 12);
                     pCell.Value = "Planned Value";
-                    pCell.Style.Font.FontColor = XLColor.FromHtml("#1D4ED8"); // Blue
+                    pCell.Style.Font.FontColor = XLColor.FromHtml("#1D4ED8");
 
                     foreach (var v in r.PlannedValues)
                     {
-                        var c = ws.Cell(row, startCol + v.idx);
+                        var c = wsSummary.Cell(sRow, startCol + v.idx);
                         c.Value = v.val;
-                        c.Style.Font.FontColor = XLColor.FromHtml("#1E40AF"); // Blue font matching screenshot
+                        c.Style.Font.FontColor = XLColor.FromHtml("#1E40AF");
                     }
-
-                    row++;
+                    sRow++;
 
                     // Row 2: Earned Value row
-                    var eCell = ws.Cell(row, 12);
+                    var eCell = wsSummary.Cell(sRow, 12);
                     eCell.Value = "Earned Value";
-                    eCell.Style.Font.FontColor = XLColor.FromHtml("#DC2626"); // Red
+                    eCell.Style.Font.FontColor = XLColor.FromHtml("#DC2626");
 
                     foreach (var v in r.EarnedValues)
                     {
-                        var c = ws.Cell(row, startCol + v.idx);
+                        var c = wsSummary.Cell(sRow, startCol + v.idx);
                         c.Value = v.val;
-                        c.Style.Font.FontColor = XLColor.FromHtml("#DC2626"); // Red font matching screenshot
+                        c.Style.Font.FontColor = XLColor.FromHtml("#DC2626");
                     }
-
-                    row++;
+                    sRow++;
                 }
 
-                // Styling
-                var headerRange = ws.Range(1, 1, 1, startCol + months.Length - 1);
-                headerRange.Style.Font.Bold = true;
-                headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#E2E8F0");
-                headerRange.Style.Font.FontColor = XLColor.Black;
+                // Summary Sheet Header Styling
+                wsSummary.Range(1, 1, 1, 5).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF9C3"); // Light yellow
+                wsSummary.Range(1, 6, 1, 12).Style.Fill.BackgroundColor = XLColor.FromHtml("#E2E8F0");
+                wsSummary.Range(1, startCol, 1, startCol + months.Length - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#DCFCE7"); // Light green
+                wsSummary.Range(1, 1, 1, startCol + months.Length - 1).Style.Font.Bold = true;
+                wsSummary.Columns().AdjustToContents();
 
-                // Color header columns matching the image (yellow for id/var/sched, light green for timeline)
-                ws.Range(1, 1, 1, 5).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF9C3"); // Light yellow
-                ws.Range(1, startCol, 1, startCol + months.Length - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#DCFCE7"); // Light green
+                // =========================================================================
+                // PAGE 2: Detailed Schedule - Primavera (Direct export format from Primavera P6)
+                // Used to produce:
+                // 1) Period Performance & Upcoming Tasks Summary
+                // 2) Individual Lookahead Schedule Table
+                // =========================================================================
+                var wsDetailed = workbook.Worksheets.Add("Detailed Schedule - Primavera");
 
-                ws.Columns().AdjustToContents();
+                wsDetailed.Cell(1, 1).Value = "Activity ID";
+                wsDetailed.Cell(1, 2).Value = "Activity Name";
+                wsDetailed.Cell(1, 3).Value = "WBS Code";
+                wsDetailed.Cell(1, 4).Value = "Activity Status";
+                wsDetailed.Cell(1, 5).Value = "Planned Start";
+                wsDetailed.Cell(1, 6).Value = "Planned Finish";
+                wsDetailed.Cell(1, 7).Value = "Forecast Start";
+                wsDetailed.Cell(1, 8).Value = "Forecast Finish";
+                wsDetailed.Cell(1, 9).Value = "Variance (days)";
+                wsDetailed.Cell(1, 10).Value = "Critical";
+                wsDetailed.Cell(1, 11).Value = "BAC Units";
+                wsDetailed.Cell(1, 12).Value = "BAC Cost ($)";
+                wsDetailed.Cell(1, 13).Value = "Planned Units";
+                wsDetailed.Cell(1, 14).Value = "Earned Units";
+                wsDetailed.Cell(1, 15).Value = "% Complete";
+                wsDetailed.Cell(1, 16).Value = "Action / Notes";
+
+                int dTimelineCol = 17;
+                for (int m = 0; m < months.Length; m++)
+                {
+                    wsDetailed.Cell(1, dTimelineCol + m).Value = months[m];
+                }
+
+                var detailedItems = new[]
+                {
+                    // WBS Level 1
+                    new { Id = "SCH.01", Name = "Royat Al Ebtikar International School", Wbs = "SCH", Status = "In Progress",
+                          Ps = "2026-09-01", Pf = "2028-01-30", Fs = "2026-09-01", Ff = "2028-01-30", Var = 0, Crit = "Yes",
+                          BacU = 580000.0, BacC = 58000000.0, Pu = 3630.5, Eu = 2677.0, Pct = 0.61, Note = "Overall Project Master", Indent = 0, Bold = true,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (0, 1790.5, 1244.0), (1, 1840.0, 1433.0) } },
+
+                    // WBS Level 2 - Mobilization & Site Setup
+                    new { Id = "MOB.01", Name = "Mobilization & Site Setup", Wbs = "SCH.01", Status = "In Progress",
+                          Ps = "2026-09-01", Pf = "2026-10-31", Fs = "2026-09-01", Ff = "2026-11-25", Var = -25, Crit = "Yes",
+                          BacU = 3581.0, BacC = 358100.0, Pu = 3430.5, Eu = 2678.0, Pct = 90.0, Note = "Delay in authority crane permit", Indent = 1, Bold = true,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (0, 1790.5, 1222.0), (1, 1640.0, 1456.0) } },
+                    new { Id = "A1010", Name = "Temporary Site Offices & Fencing", Wbs = "SCH.01.01", Status = "Completed",
+                          Ps = "2026-09-01", Pf = "2026-09-25", Fs = "2026-09-01", Ff = "2026-09-22", Var = 3, Crit = "No",
+                          BacU = 1200.0, BacC = 120000.0, Pu = 1200.0, Eu = 1200.0, Pct = 100.0, Note = "Completed ahead of schedule", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (0, 1200.0, 1200.0) } },
+                    new { Id = "A1020", Name = "Water & Power Substation Hookup", Wbs = "SCH.01.01", Status = "In Progress",
+                          Ps = "2026-09-10", Pf = "2026-10-25", Fs = "2026-09-10", Ff = "2026-11-15", Var = -21, Crit = "Yes",
+                          BacU = 1381.0, BacC = 138100.0, Pu = 1381.0, Eu = 800.0, Pct = 57.9, Note = "Expedite municipality utility connection", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (0, 590.5, 22.0), (1, 790.5, 778.0) } },
+                    new { Id = "A1030", Name = "Heavy Machinery Logistics", Wbs = "SCH.01.01", Status = "In Progress",
+                          Ps = "2026-10-01", Pf = "2026-10-31", Fs = "2026-10-01", Ff = "2026-11-10", Var = -10, Crit = "No",
+                          BacU = 1000.0, BacC = 100000.0, Pu = 849.5, Eu = 678.0, Pct = 67.8, Note = "Excavators mobilized", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (1, 849.5, 678.0) } },
+
+                    // WBS Level 2 - Earth Works
+                    new { Id = "EW.01", Name = "Earth Works & Substructure Excavation", Wbs = "SCH.02", Status = "In Progress",
+                          Ps = "2026-10-01", Pf = "2026-12-31", Fs = "2026-10-01", Ff = "2026-12-31", Var = 0, Crit = "Yes",
+                          BacU = 4200.0, BacC = 420000.0, Pu = 39.0, Eu = 39.0, Pct = 0.70, Note = "Starting mass excavation", Indent = 1, Bold = true,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (1, 39.0, 39.0), (2, 2121.0, 0), (3, 2040.0, 0) } },
+                    new { Id = "A2010", Name = "Excavation for Foundations & Footings", Wbs = "SCH.02.01", Status = "In Progress",
+                          Ps = "2026-10-01", Pf = "2026-12-15", Fs = "2026-10-01", Ff = "2026-12-15", Var = 0, Crit = "Yes",
+                          BacU = 228.0, BacC = 22800.0, Pu = 41.0, Eu = 41.0, Pct = 17.11, Note = "Zone A excavation on track", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (1, 41.0, 41.0), (2, 111.0, 0), (3, 76.0, 0) } },
+                    new { Id = "A2020", Name = "Engineered Soil Replacement & Compaction", Wbs = "SCH.02.01", Status = "Not Started",
+                          Ps = "2026-11-01", Pf = "2026-12-30", Fs = "2026-11-01", Ff = "2026-12-30", Var = 0, Crit = "No",
+                          BacU = 220.0, BacC = 22000.0, Pu = 70.0, Eu = 0.0, Pct = 0.0, Note = "Target start in current period lookahead", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (2, 70.0, 0), (3, 150.0, 0) } },
+                    new { Id = "A2030", Name = "Backfill Foundation Perimeter", Wbs = "SCH.02.01", Status = "Not Started",
+                          Ps = "2026-11-15", Pf = "2027-02-28", Fs = "2026-11-15", Ff = "2027-02-28", Var = 0, Crit = "No",
+                          BacU = 5085.0, BacC = 508500.0, Pu = 142.0, Eu = 0.0, Pct = 0.0, Note = "Upcoming next month", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (2, 142.0, 0), (3, 1581.0, 0) } },
+
+                    // WBS Level 2 - Structural Works
+                    new { Id = "RC.01", Name = "Reinforced Concrete Works", Wbs = "SCH.03", Status = "Not Started",
+                          Ps = "2026-11-15", Pf = "2027-06-30", Fs = "2026-11-15", Ff = "2027-06-30", Var = 0, Crit = "Yes",
+                          BacU = 89907.0, BacC = 8990700.0, Pu = 6136.0, Eu = 0.0, Pct = 0.0, Note = "Rebar procurement ongoing", Indent = 1, Bold = true,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (2, 6136.0, 0), (3, 17226.0, 0) } },
+                    new { Id = "A3010", Name = "Foundation Concrete Pouring - Block A", Wbs = "SCH.03.01", Status = "Not Started",
+                          Ps = "2026-11-15", Pf = "2026-12-20", Fs = "2026-11-15", Ff = "2026-12-20", Var = 0, Crit = "Yes",
+                          BacU = 4500.0, BacC = 450000.0, Pu = 4500.0, Eu = 0.0, Pct = 0.0, Note = "Ready mix concrete batching approved", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (2, 4500.0, 0) } },
+                    new { Id = "A3020", Name = "Columns & Retaining Walls Casting", Wbs = "SCH.03.01", Status = "Not Started",
+                          Ps = "2026-12-01", Pf = "2027-01-30", Fs = "2026-12-01", Ff = "2027-01-30", Var = 0, Crit = "Yes",
+                          BacU = 12726.0, BacC = 1272600.0, Pu = 0.0, Eu = 0.0, Pct = 0.0, Note = "Formwork delivery scheduled", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (3, 12726.0, 0) } },
+
+                    // WBS Level 2 - MEP First Fix
+                    new { Id = "MEP.01", Name = "MEP Rough-in & Underground Piping", Wbs = "SCH.04", Status = "Not Started",
+                          Ps = "2026-11-01", Pf = "2027-12-31", Fs = "2026-11-01", Ff = "2027-12-31", Var = 0, Crit = "No",
+                          BacU = 64455.0, BacC = 9668250.0, Pu = 477.0, Eu = 0.0, Pct = 0.0, Note = "Underground conduit coordination", Indent = 1, Bold = true,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (2, 477.0, 0), (3, 2116.0, 0) } },
+                    new { Id = "A4010", Name = "Underground Drainage Sleeves & Earthing", Wbs = "SCH.04.01", Status = "Not Started",
+                          Ps = "2026-11-01", Pf = "2026-11-30", Fs = "2026-11-01", Ff = "2026-11-30", Var = 0, Crit = "No",
+                          BacU = 477.0, BacC = 71550.0, Pu = 477.0, Eu = 0.0, Pct = 0.0, Note = "Commencing in lookahead window", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (2, 477.0, 0) } },
+                    new { Id = "A4020", Name = "Substation Civil Embedments", Wbs = "SCH.04.01", Status = "Not Started",
+                          Ps = "2026-12-01", Pf = "2026-12-31", Fs = "2026-12-01", Ff = "2026-12-31", Var = 0, Crit = "No",
+                          BacU = 1100.0, BacC = 165000.0, Pu = 1100.0, Eu = 0.0, Pct = 0.0, Note = "Transformer room pad layout", Indent = 2, Bold = false,
+                          Timeline = new (int idx, double pVal, double eVal)[] { (3, 1100.0, 0) } }
+                };
+
+                int dRow = 2;
+                foreach (var act in detailedItems)
+                {
+                    wsDetailed.Cell(dRow, 1).Value = act.Id;
+                    wsDetailed.Cell(dRow, 2).Value = act.Name;
+                    wsDetailed.Cell(dRow, 2).Style.Alignment.Indent = act.Indent;
+                    if (act.Bold) wsDetailed.Cell(dRow, 2).Style.Font.Bold = true;
+
+                    wsDetailed.Cell(dRow, 3).Value = act.Wbs;
+                    wsDetailed.Cell(dRow, 4).Value = act.Status;
+                    wsDetailed.Cell(dRow, 5).Value = DateTime.Parse(act.Ps);
+                    wsDetailed.Cell(dRow, 6).Value = DateTime.Parse(act.Pf);
+                    wsDetailed.Cell(dRow, 7).Value = DateTime.Parse(act.Fs);
+                    wsDetailed.Cell(dRow, 8).Value = DateTime.Parse(act.Ff);
+                    wsDetailed.Cell(dRow, 9).Value = act.Var;
+                    wsDetailed.Cell(dRow, 10).Value = act.Crit;
+                    wsDetailed.Cell(dRow, 11).Value = act.BacU;
+                    wsDetailed.Cell(dRow, 12).Value = act.BacC;
+                    wsDetailed.Cell(dRow, 13).Value = act.Pu;
+                    wsDetailed.Cell(dRow, 14).Value = act.Eu;
+                    wsDetailed.Cell(dRow, 15).Value = act.Pct;
+                    wsDetailed.Cell(dRow, 16).Value = act.Note;
+
+                    foreach (var pt in act.Timeline)
+                    {
+                        var col = dTimelineCol + pt.idx;
+                        wsDetailed.Cell(dRow, col).Value = pt.pVal; // Planned in cell
+                    }
+
+                    dRow++;
+                }
+
+                // Detailed Sheet Header Styling (Primavera P6 style header)
+                wsDetailed.Range(1, 1, 1, 16).Style.Fill.BackgroundColor = XLColor.FromHtml("#E2E8F0");
+                wsDetailed.Range(1, 1, 1, 4).Style.Fill.BackgroundColor = XLColor.FromHtml("#FEF9C3");
+                wsDetailed.Range(1, dTimelineCol, 1, dTimelineCol + months.Length - 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#DCFCE7");
+                wsDetailed.Range(1, 1, 1, dTimelineCol + months.Length - 1).Style.Font.Bold = true;
+                wsDetailed.Columns().AdjustToContents();
+
                 workbook.SaveAs(stream);
             }
             return stream.ToArray();

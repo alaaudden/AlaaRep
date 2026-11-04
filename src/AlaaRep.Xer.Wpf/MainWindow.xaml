@@ -5,24 +5,23 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:AlaaRep.Xer.Wpf"
+        xmlns:controls="clr-namespace:AlaaRep.Xer.Wpf.Controls"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}" Height="750" Width="1180"
+        Title="{Binding WindowTitle}" Height="850" Width="1350"
         WindowStartupLocation="CenterScreen"
-        FontFamily="Segoe UI" FontSize="13" Background="#F4F6F9">
+        FontFamily="Segoe UI" FontSize="12" Background="#F4F6F9">
 
     <Window.DataContext>
         <local:MainViewModel />
     </Window.DataContext>
 
     <Window.Resources>
-        <!-- Style definitions -->
-        <SolidColorBrush x:Key="PrimaryBrush" Color="#0D6EFD"/>
-        <SolidColorBrush x:Key="PrimaryDarkBrush" Color="#0B5ED7"/>
-        <SolidColorBrush x:Key="DarkBg" Color="#212529"/>
+        <local:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <local:NodeColorConverter x:Key="NodeColor"/>
 
         <Style x:Key="ToolbarButtonStyle" TargetType="Button">
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="#CED4DA"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -40,12 +39,12 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Header / Ribbon -->
-            <RowDefinition Height="*"/>    <!-- Main Workspace -->
+            <RowDefinition Height="*"/>    <!-- Main Schedule + Property Tabs -->
             <RowDefinition Height="Auto"/> <!-- Status Bar -->
         </Grid.RowDefinitions>
 
-        <!-- Ribbon / Header -->
-        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#DEE2E6" BorderThickness="0,0,0,1" Padding="14,12">
+        <!-- Top Ribbon / Actions -->
+        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#DEE2E6" BorderThickness="0,0,0,1" Padding="12,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -59,71 +58,296 @@
                     <Button Content="💾 Save" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButtonStyle}"/>
                     <Button Content="💾 Save As..." Command="{Binding SaveAsCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                     <Button Content="⚡ Load Sample" Command="{Binding LoadSampleCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
-                    <Separator Width="1" Margin="6,2,14,2" Background="#DEE2E6"/>
+                    <Separator Width="1" Margin="6,2,10,2" Background="#DEE2E6"/>
                     <Button Content="➕ Add Activity" Command="{Binding AddActivityCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
-                    <Button Content="🗑 Delete Activity" Command="{Binding DeleteActivityCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                    <Button Content="🗑 Delete" Command="{Binding DeleteActivityCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                    <Separator Width="1" Margin="6,2,10,2" Background="#DEE2E6"/>
+                    <Button Content="➕ Expand All" Command="{Binding ExpandAllCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
+                    <Button Content="➖ Collapse All" Command="{Binding CollapseAllCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                 </StackPanel>
 
                 <!-- Project Title Editor -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="Project Name:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#495057"/>
-                    <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}" Width="260" Padding="6,4"
+                    <TextBlock Text="Project:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#495057"/>
+                    <TextBox Text="{Binding ProjectName, UpdateSourceTrigger=PropertyChanged}" Width="260" Padding="6,3"
                              BorderBrush="#CED4DA" Background="#F8F9FA"/>
                 </StackPanel>
 
                 <!-- Search box -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="🔍 Filter:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#6C757D"/>
-                    <TextBox Text="{Binding SearchFilter, UpdateSourceTrigger=PropertyChanged}" Width="180" Padding="6,4"
+                    <TextBox Text="{Binding SearchFilter, UpdateSourceTrigger=PropertyChanged}" Width="160" Padding="6,3"
                              BorderBrush="#CED4DA" VerticalContentAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Main Workspace (Tab Control) -->
-        <TabControl Grid.Row="1" Background="#FFFFFF" BorderThickness="0" Margin="10">
-            <!-- TAB 1: CURATED ACTIVITY SCHEDULE VIEW -->
-            <TabItem Header="📋 Activity Schedule Editor">
-                <Grid Margin="6">
-                    <DataGrid ItemsSource="{Binding Activities}"
-                              SelectedItem="{Binding SelectedActivity, Mode=TwoWay}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              AlternatingRowBackground="#F9FAFB"
-                              RowBackground="#FFFFFF"
-                              GridLinesVisibility="Horizontal"
-                              HorizontalGridLinesBrush="#E9ECEF"
-                              BorderBrush="#DEE2E6"
-                              BorderThickness="1"
-                              FontSize="13"
-                              RowHeight="32">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Activity ID" Binding="{Binding TaskCode, UpdateSourceTrigger=PropertyChanged}" FontWeight="Bold" Width="100"/>
-                            <DataGridTextColumn Header="Activity Name" Binding="{Binding TaskName, UpdateSourceTrigger=PropertyChanged}" Width="260"/>
-                            <DataGridComboBoxColumn Header="Status"
-                                                    SelectedItemBinding="{Binding StatusDisplayName, UpdateSourceTrigger=PropertyChanged}"
-                                                    Width="120">
-                                <DataGridComboBoxColumn.ItemsSource>
-                                    <x:Array Type="{x:Type sys:String}">
-                                        <sys:String>Not Started</sys:String>
-                                        <sys:String>In Progress</sys:String>
-                                        <sys:String>Completed</sys:String>
-                                    </x:Array>
-                                </DataGridComboBoxColumn.ItemsSource>
-                            </DataGridComboBoxColumn>
-                            <DataGridTextColumn Header="% Complete" Binding="{Binding PhysicalPercentComplete, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N1}%}" Width="100"/>
-                            <DataGridTextColumn Header="Planned Days" Binding="{Binding TargetDurationDays, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N1}}" Width="100"/>
-                            <DataGridTextColumn Header="Planned Start" Binding="{Binding TargetStartDate, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
-                            <DataGridTextColumn Header="Planned Finish" Binding="{Binding TargetEndDate, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
-                            <DataGridTextColumn Header="Actual Start" Binding="{Binding ActualStartDate, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
-                            <DataGridTextColumn Header="Actual Finish" Binding="{Binding ActualEndDate, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
-                            <DataGridTextColumn Header="Total Float (Hrs)" Binding="{Binding TotalFloatHours, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+        <!-- Main Schedule Tabs Container -->
+        <TabControl Grid.Row="1" Background="#FFFFFF" BorderThickness="0" Margin="6">
+            <!-- TAB 1: PRIMAVERA P6 GANTT CHART + WBS TREE & DETAIL TABS -->
+            <TabItem Header="📊 Primavera P6 Gantt &amp; Activities">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="3*" MinHeight="220"/> <!-- Top: TreeGrid & Gantt Canvas -->
+                        <RowDefinition Height="5"/>                  <!-- Splitter -->
+                        <RowDefinition Height="2*" MinHeight="160"/> <!-- Bottom: Task Detail Tabs -->
+                    </Grid.RowDefinitions>
+
+                    <!-- TOP SPLIT: Left Table Grid + Right Gantt Canvas -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="650" MinWidth="350"/> <!-- Left TreeGrid -->
+                            <ColumnDefinition Width="5"/>                  <!-- Splitter -->
+                            <ColumnDefinition Width="*" MinWidth="300"/>   <!-- Right Gantt Chart -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- LEFT: Hierarchical WBS + Task Table -->
+                        <Border Grid.Column="0" BorderBrush="#DEE2E6" BorderThickness="1">
+                            <DataGrid x:Name="TreeDataGrid"
+                                      ItemsSource="{Binding VisibleScheduleItems}"
+                                      SelectedItem="{Binding SelectedScheduleNode, Mode=TwoWay}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      AlternatingRowBackground="#F9FAFB"
+                                      RowBackground="#FFFFFF"
+                                      GridLinesVisibility="Horizontal"
+                                      HorizontalGridLinesBrush="#E9ECEF"
+                                      BorderThickness="0"
+                                      RowHeight="28"
+                                      HeadersVisibility="Column"
+                                      ScrollViewer.ScrollChanged="TreeDataGrid_ScrollChanged">
+                                <DataGrid.Columns>
+                                    <!-- Activity / WBS Code with Tree Indentation and Toggle -->
+                                    <DataGridTemplateColumn Header="Activity / WBS ID" Width="170">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="{Binding IndentMargin, Converter={x:Null}}">
+                                                    <!-- Expand / Collapse Toggle button for nodes with children -->
+                                                    <Button Width="16" Height="16" Margin="0,0,4,0"
+                                                            VerticalAlignment="Center"
+                                                            Background="Transparent" BorderThickness="0"
+                                                            FontWeight="Bold" FontSize="11" Padding="0"
+                                                            Cursor="Hand"
+                                                            Command="{Binding DataContext.ToggleNodeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding HasChildren, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="{Binding IsExpanded, Converter={x:Null}}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Text" Value="▶"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                                            <Setter Property="Text" Value="▼"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Button>
+
+                                                    <!-- Icon indicator -->
+                                                    <TextBlock VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="📄"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsWbs}" Value="True">
+                                                                        <Setter Property="Text" Value="📁"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsMilestone}" Value="True">
+                                                                        <Setter Property="Text" Value="🔶"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <TextBlock Text="{Binding Code}" VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontWeight" Value="Normal"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsWbs}" Value="True">
+                                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                                        <Setter Property="Foreground" Value="#002D62"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <!-- Activity / WBS Name -->
+                                    <DataGridTextColumn Header="Activity / WBS Name" Binding="{Binding Name}" Width="210">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsWbs}" Value="True">
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+
+                                    <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplayName}" Width="95"/>
+                                    <DataGridTextColumn Header="% Comp" Binding="{Binding PercentComplete, StringFormat={}{0:N0}%}" Width="65"/>
+                                    <DataGridTextColumn Header="Planned Days" Binding="{Binding DurationDays, StringFormat={}{0:N1}}" Width="85"/>
+                                    <DataGridTextColumn Header="Start Date" Binding="{Binding FormattedStartDate}" Width="110"/>
+                                    <DataGridTextColumn Header="Finish Date" Binding="{Binding FormattedEndDate}" Width="110"/>
+                                    <DataGridTextColumn Header="Total Float" Binding="{Binding TotalFloatHours, StringFormat={}{0:N0}h}" Width="75"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <!-- Vertical Splitter -->
+                        <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+                        <!-- RIGHT: Interactive Primavera Gantt Chart Canvas -->
+                        <Border Grid.Column="2" BorderBrush="#DEE2E6" BorderThickness="1" Background="#FFFFFF">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="46"/> <!-- Major / Minor Timeline Header -->
+                                    <RowDefinition Height="*"/>  <!-- Bars Canvas ScrollViewer -->
+                                </Grid.RowDefinitions>
+
+                                <!-- Timeline Header Bar -->
+                                <ScrollViewer x:Name="TimelineHeaderScrollViewer"
+                                              Grid.Row="0"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Disabled">
+                                    <Canvas Width="{Binding TimelineManager.TotalWidth}" Height="46" Background="#F1F3F5">
+                                        <Border Width="{Binding TimelineManager.TotalWidth}" Height="46" BorderBrush="#CED4DA" BorderThickness="0,0,0,1"/>
+                                        <ItemsControl ItemsSource="{Binding TimelineManager.MajorSegments}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                                                    <Setter Property="Canvas.Top" Value="0"/>
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="{Binding Width}" Height="46" BorderBrush="#DEE2E6" BorderThickness="0,0,1,1" Background="#E9ECEF">
+                                                        <TextBlock Text="{Binding HeaderText}" FontWeight="Bold" FontSize="11" Foreground="#495057"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Canvas>
+                                </ScrollViewer>
+
+                                <!-- Gantt Bars ScrollViewer (Synced vertically with TreeDataGrid) -->
+                                <ScrollViewer x:Name="GanttScrollViewer"
+                                              Grid.Row="1"
+                                              HorizontalScrollBarVisibility="Auto"
+                                              VerticalScrollBarVisibility="Auto"
+                                              ScrollChanged="GanttScrollViewer_ScrollChanged">
+                                    <ItemsControl ItemsSource="{Binding VisibleScheduleItems}" Width="{Binding TimelineManager.TotalWidth}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Height="28" Background="Transparent">
+                                                    <!-- Background row divider -->
+                                                    <Border BorderBrush="#F1F3F5" BorderThickness="0,0,0,1"/>
+
+                                                    <!-- Canvas for exact bar positioning -->
+                                                    <Canvas Height="28">
+                                                        <!-- 1. WBS SUMMARY BAR (Black Bracket / Summary Bar) -->
+                                                        <Border Canvas.Left="{Binding GanttLeft}"
+                                                                Canvas.Top="8"
+                                                                Width="{Binding GanttWidth}"
+                                                                Height="8"
+                                                                Background="#212529"
+                                                                CornerRadius="2"
+                                                                Visibility="{Binding IsWbs, Converter={StaticResource BoolToVis}}">
+                                                            <ToolTipService.ToolTip>
+                                                                <TextBlock Text="{Binding Name, StringFormat='WBS: {0}'}"/>
+                                                            </ToolTipService.ToolTip>
+                                                        </Border>
+
+                                                        <!-- 2. MILESTONE DIAMOND (Yellow/Gold Diamond) -->
+                                                        <Polygon Canvas.Left="{Binding GanttLeft}"
+                                                                 Canvas.Top="7"
+                                                                 Points="7,0 14,7 7,14 0,7"
+                                                                 Fill="#FFC107"
+                                                                 Stroke="#D39E00"
+                                                                 StrokeThickness="1"
+                                                                 Visibility="{Binding IsMilestone, Converter={StaticResource BoolToVis}}">
+                                                            <ToolTipService.ToolTip>
+                                                                <TextBlock Text="{Binding Name, StringFormat='Milestone: {0}'}"/>
+                                                            </ToolTipService.ToolTip>
+                                                        </Polygon>
+
+                                                        <!-- 3. NORMAL / CRITICAL ACTIVITY BAR -->
+                                                        <Grid Canvas.Left="{Binding GanttLeft}"
+                                                              Canvas.Top="7"
+                                                              Width="{Binding GanttWidth}"
+                                                              Height="14"
+                                                              Visibility="{Binding IsActivity, Converter={StaticResource BoolToVis}}">
+                                                            <!-- Base Bar (Red if Critical, Blue if Normal) -->
+                                                            <Border CornerRadius="3"
+                                                                    Background="{Binding Converter={StaticResource NodeColor}}"
+                                                                    BorderThickness="1"
+                                                                    BorderBrush="#0A58CA"/>
+
+                                                            <!-- Progress Overlay (Darker fill based on % complete) -->
+                                                            <Border HorizontalAlignment="Left"
+                                                                    CornerRadius="3,0,0,3"
+                                                                    Width="{Binding GanttProgressWidth}"
+                                                                    Background="#198754"
+                                                                    Opacity="0.8"/>
+
+                                                            <ToolTipService.ToolTip>
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Code, StringFormat='Activity: {0}'}" FontWeight="Bold"/>
+                                                                    <TextBlock Text="{Binding Name}"/>
+                                                                    <TextBlock Text="{Binding PercentComplete, StringFormat='Progress: {0:N0}%'}"/>
+                                                                    <TextBlock Text="{Binding FormattedStartDate, StringFormat='Start: {0}'}"/>
+                                                                    <TextBlock Text="{Binding FormattedEndDate, StringFormat='Finish: {0}'}"/>
+                                                                </StackPanel>
+                                                            </ToolTipService.ToolTip>
+                                                        </Grid>
+
+                                                        <!-- Task name label next to bar -->
+                                                        <TextBlock Canvas.Left="{Binding GanttLeft}"
+                                                                   Canvas.Top="6"
+                                                                   Margin="0,0,0,0"
+                                                                   FontSize="10"
+                                                                   Foreground="#6C757D"
+                                                                   Text="{Binding Code}">
+                                                            <TextBlock.RenderTransform>
+                                                                <TranslateTransform X="{Binding GanttWidth, Converter={x:Null}}" Y="0"/>
+                                                            </TextBlock.RenderTransform>
+                                                        </TextBlock>
+                                                    </Canvas>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Horizontal GridSplitter between Schedule view and Bottom Detail Tabs -->
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center" Background="#DEE2E6" ShowsPreview="True"/>
+
+                    <!-- BOTTOM: Primavera P6 Style Property Detail Tabs -->
+                    <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0">
+                        <controls:TaskDetailTabsControl DataContext="{Binding}"/>
+                    </Border>
                 </Grid>
             </TabItem>
 
-            <!-- TAB 2: RAW XER TABLES AND FIELDS INSPECTOR -->
+            <!-- TAB 2: ALL TABLES & RAW XER INSPECTOR -->
             <TabItem Header="🗄 All Tables &amp; Raw XER Inspector">
                 <Grid Margin="6">
                     <Grid.ColumnDefinitions>
@@ -153,7 +377,6 @@
                             <Button Content="🗑 Delete Table Row" Command="{Binding DeleteTableRowCommand}" Style="{StaticResource ToolbarButtonStyle}"/>
                         </StackPanel>
 
-                        <!-- Dynamically populated or bound via code-behind in MainWindow.xaml.cs -->
                         <DataGrid x:Name="RawTableDataGrid"
                                   AutoGenerateColumns="False"
                                   CanUserAddRows="False"
@@ -170,7 +393,7 @@
         </TabControl>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2" Background="#E9ECEF" Padding="10,6">
+        <StatusBar Grid.Row="2" Background="#E9ECEF" Padding="10,4">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}" Foreground="#495057"/>
             </StatusBarItem>

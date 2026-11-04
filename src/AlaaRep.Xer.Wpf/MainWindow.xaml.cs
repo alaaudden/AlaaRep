@@ -2,13 +2,14 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using AlaaRep.Xer.Models;
+using System.Windows.Media;
 
 namespace AlaaRep.Xer.Wpf;
 
 public partial class MainWindow : Window
 {
     private MainViewModel? _viewModel;
+    private bool _isSyncingScroll;
 
     public MainWindow()
     {
@@ -54,7 +55,6 @@ public partial class MainWindow : Window
             var col = new DataGridTextColumn
             {
                 Header = field,
-                // XerRow indexer binding: [field]
                 Binding = new Binding($"[{field}]")
                 {
                     Mode = BindingMode.TwoWay,
@@ -66,5 +66,64 @@ public partial class MainWindow : Window
         }
 
         RawTableDataGrid.ItemsSource = table.Rows;
+    }
+
+    /// <summary>
+    /// Synchronizes vertical scrolling from TreeDataGrid to GanttScrollViewer.
+    /// </summary>
+    private void TreeDataGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_isSyncingScroll) return;
+        try
+        {
+            _isSyncingScroll = true;
+            if (e.VerticalChange != 0)
+            {
+                GanttScrollViewer.ScrollToVerticalOffset(e.VerticalOffset);
+            }
+        }
+        finally
+        {
+            _isSyncingScroll = false;
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes vertical scrolling from GanttScrollViewer to TreeDataGrid,
+    /// and horizontal scrolling to TimelineHeaderScrollViewer.
+    /// </summary>
+    private void GanttScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.HorizontalChange != 0)
+        {
+            TimelineHeaderScrollViewer.ScrollToHorizontalOffset(e.HorizontalOffset);
+        }
+
+        if (_isSyncingScroll) return;
+        try
+        {
+            _isSyncingScroll = true;
+            if (e.VerticalChange != 0)
+            {
+                var scrollViewer = GetScrollViewer(TreeDataGrid);
+                scrollViewer?.ScrollToVerticalOffset(e.VerticalOffset);
+            }
+        }
+        finally
+        {
+            _isSyncingScroll = false;
+        }
+    }
+
+    private static ScrollViewer? GetScrollViewer(DependencyObject dep)
+    {
+        if (dep is ScrollViewer sv) return sv;
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(dep); i++)
+        {
+            var child = VisualTreeHelper.GetChild(dep, i);
+            var result = GetScrollViewer(child);
+            if (result != null) return result;
+        }
+        return null;
     }
 }

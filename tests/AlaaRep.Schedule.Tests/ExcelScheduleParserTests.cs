@@ -22,23 +22,28 @@ namespace AlaaRep.Schedule.Tests
             var summary = parser.Parse(stream);
 
             Assert.NotNull(summary);
-            Assert.Equal(7, summary.TotalActivities);
+            Assert.Equal(17, summary.TotalActivities);
             Assert.True(summary.TotalBudgetAtCompletion > 0);
             Assert.True(summary.TotalPlannedValue > 0);
-            Assert.True(summary.TotalEarnedValue > 0);
-            Assert.NotEmpty(summary.WeeklySeries);
-            Assert.Equal(6, summary.WeeklySeries.Count);
+            Assert.NotEmpty(summary.MonthlySeries);
+            Assert.Equal(17, summary.MonthlySeries.Count);
 
-            // Verify first activity
-            var act1 = summary.Activities.FirstOrDefault(a => a.ActivityId == "ACT-100");
-            Assert.NotNull(act1);
-            Assert.Equal("Mobilization & Site Prep", act1.ActivityName);
-            Assert.Equal(50000.0, act1.BudgetAtCompletion);
-            Assert.Equal(new DateTime(2026, 1, 5), act1.PlannedStartDate);
-            Assert.Equal(new DateTime(2026, 1, 23), act1.PlannedFinishDate);
-            Assert.Equal(new DateTime(2026, 1, 5), act1.ForecastStartDate);
-            Assert.Equal(new DateTime(2026, 1, 22), act1.ForecastFinishDate);
-            Assert.Equal(1, act1.FinishVarianceDays); // Forecast is 1 day earlier than planned
+            // Verify first activity: Royat Al Ebtikar International School
+            var school = summary.Activities.FirstOrDefault(a => a.ActivityId == "SCH-001");
+            Assert.NotNull(school);
+            Assert.Equal("Royat Al Ebtikar International School", school.ActivityName);
+            Assert.Equal(580000.0, school.BudgetAtCompletionUnits);
+
+            // Verify Mobilization
+            var mob = summary.Activities.FirstOrDefault(a => a.ActivityId == "MOB-100");
+            Assert.NotNull(mob);
+            Assert.Equal("Mobilization", mob.ActivityName);
+            Assert.Equal(-25, mob.VarianceDays);
+            Assert.Equal(100.0, mob.SchedulePercent);
+            Assert.Equal(90.0, mob.PerformancePercent);
+
+            // Verify lookahead generated
+            Assert.NotEmpty(summary.LookaheadActivities);
         }
 
         [Fact]

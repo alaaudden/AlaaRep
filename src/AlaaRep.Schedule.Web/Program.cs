@@ -38,7 +38,7 @@ app.MapGet("/api/schedule/sample", (SampleScheduleGenerator generator) =>
     return Results.File(
         bytes,
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Project_Schedule_Update_Sample.xlsx"
+        "Royat_Al_Ebtikar_Schedule.xlsx"
     );
 });
 
@@ -84,6 +84,18 @@ app.MapPost("/api/schedule/upload", async (HttpRequest request, ExcelSchedulePar
     {
         return Results.BadRequest(new { error = $"Error reading schedule Excel: {ex.Message}" });
     }
+});
+
+// Endpoint: Recalculate Lookahead with custom days
+app.MapGet("/api/schedule/lookahead", (int days, EvmCalculationEngine engine) =>
+{
+    if (currentSummary == null)
+    {
+        return Results.NotFound(new { error = "No schedule data loaded." });
+    }
+    var baseDate = currentSummary.DataDate ?? System.DateTime.Today;
+    var lookaheadItems = engine.CalculateLookahead(currentSummary.Activities, baseDate, days);
+    return Results.Ok(lookaheadItems);
 });
 
 // Endpoint: Get Current Summary

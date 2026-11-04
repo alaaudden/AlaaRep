@@ -7,18 +7,73 @@ namespace AlaaRep.Schedule.Core.Models
     {
         public string ActivityId { get; set; } = string.Empty;
         public string ActivityName { get; set; } = string.Empty;
+        public string WbsCode { get; set; } = string.Empty;
+        public int Level { get; set; } = 0; // 0 = Project, 1 = Major Summary, 2 = WBS, 3 = Task
+        public bool IsSummary { get; set; } = false;
+
         public DateTime? PlannedStartDate { get; set; }
         public DateTime? PlannedFinishDate { get; set; }
         public DateTime? ForecastStartDate { get; set; }
         public DateTime? ForecastFinishDate { get; set; }
 
-        public double BudgetAtCompletion { get; set; } // BAC (Total planned value)
-        public double EarnedValueToDate { get; set; } // Total EV recorded so far
-        public double PlannedValueToDate { get; set; } // Total PV recorded so far
+        // Variance & percentages
+        public int? VarianceDays { get; set; } // Schedule variance in days (Planned Finish - Forecast Finish)
+        public double? SchedulePercent { get; set; } // Planned %
+        public double? PerformancePercent { get; set; } // Earned/Actual %
 
-        public double PercentComplete => BudgetAtCompletion > 0
-            ? Math.Round((EarnedValueToDate / BudgetAtCompletion) * 100.0, 2)
-            : 0.0;
+        // Cost-wise metrics
+        public double BudgetAtCompletionCost { get; set; } // BAC Cost ($)
+        public double EarnedCostToDate { get; set; } // EV Cost ($)
+        public double PlannedCostToDate { get; set; } // PV Cost ($)
+
+        // Unit-wise metrics (Labor units / Man-hours / Quantities)
+        public double BudgetAtCompletionUnits { get; set; } // BAC Units
+        public double EarnedUnitsToDate { get; set; } // EV Units
+        public double PlannedUnitsToDate { get; set; } // PV Units
+
+        // Backward compatibility properties for standard EVM
+        public double BudgetAtCompletion
+        {
+            get => BudgetAtCompletionCost > 0 ? BudgetAtCompletionCost : BudgetAtCompletionUnits;
+            set
+            {
+                if (BudgetAtCompletionCost == 0) BudgetAtCompletionCost = value;
+                if (BudgetAtCompletionUnits == 0) BudgetAtCompletionUnits = value;
+            }
+        }
+
+        public double EarnedValueToDate
+        {
+            get => EarnedCostToDate > 0 ? EarnedCostToDate : EarnedUnitsToDate;
+            set
+            {
+                if (EarnedCostToDate == 0) EarnedCostToDate = value;
+                if (EarnedUnitsToDate == 0) EarnedUnitsToDate = value;
+            }
+        }
+
+        public double PlannedValueToDate
+        {
+            get => PlannedCostToDate > 0 ? PlannedCostToDate : PlannedUnitsToDate;
+            set
+            {
+                if (PlannedCostToDate == 0) PlannedCostToDate = value;
+                if (PlannedUnitsToDate == 0) PlannedUnitsToDate = value;
+            }
+        }
+
+        public double PercentComplete
+        {
+            get
+            {
+                if (PerformancePercent.HasValue) return PerformancePercent.Value;
+                if (BudgetAtCompletionUnits > 0)
+                    return Math.Round((EarnedUnitsToDate / BudgetAtCompletionUnits) * 100.0, 2);
+                if (BudgetAtCompletionCost > 0)
+                    return Math.Round((EarnedCostToDate / BudgetAtCompletionCost) * 100.0, 2);
+                return 0.0;
+            }
+        }
 
         public int? PlannedDurationDays => (PlannedStartDate.HasValue && PlannedFinishDate.HasValue)
             ? (int)(PlannedFinishDate.Value.Date - PlannedStartDate.Value.Date).TotalDays
@@ -28,17 +83,18 @@ namespace AlaaRep.Schedule.Core.Models
             ? (int)(ForecastFinishDate.Value.Date - ForecastStartDate.Value.Date).TotalDays
             : null;
 
-        // Schedule variance in days: Positive means finished/forecasted earlier than planned, negative means delayed
-        public int? FinishVarianceDays => (PlannedFinishDate.HasValue && ForecastFinishDate.HasValue)
-            ? (int)(PlannedFinishDate.Value.Date - ForecastFinishDate.Value.Date).TotalDays
-            : null;
+        public int? FinishVarianceDays => VarianceDays.HasValue
+            ? VarianceDays.Value
+            : ((PlannedFinishDate.HasValue && ForecastFinishDate.HasValue)
+                ? (int)(PlannedFinishDate.Value.Date - ForecastFinishDate.Value.Date).TotalDays
+                : null);
 
         public ActivityStatus Status
         {
             get
             {
                 if (PercentComplete >= 100.0) return ActivityStatus.Completed;
-                if (EarnedValueToDate > 0)
+                if (EarnedUnitsToDate > 0 || EarnedCostToDate > 0 || (PerformancePercent.HasValue && PerformancePercent.Value > 0))
                 {
                     if (FinishVarianceDays.HasValue && FinishVarianceDays.Value < 0)
                         return ActivityStatus.Delayed;
@@ -50,7 +106,10 @@ namespace AlaaRep.Schedule.Core.Models
             }
         }
 
-        // Weekly value breakdown for this activity: Week Key -> WeeklyValueItem
+        // Periodic value breakdown (can be monthly or weekly)
+        public List<PeriodicValueItem> PeriodValues { get; set; } = new();
+
+        // Weekly value breakdown maintained for backward compatibility
         public List<WeeklyValueItem> WeeklyValues { get; set; } = new();
     }
 
@@ -62,6 +121,21 @@ namespace AlaaRep.Schedule.Core.Models
         Delayed
     }
 
+    public class PeriodicValueItem
+    {
+        public string PeriodLabel { get; set; } = string.Empty; // e.g. "1-Sep-26" or "Sep 2026"
+        public DateTime? PeriodDate { get; set; }
+        public int PeriodIndex { get; set; }
+        public double PlannedUnits { get; set; }
+        public double EarnedUnits { get; set; }
+        public double PlannedCost { get; set; }
+        public double EarnedCost { get; set; }
+
+        // Backwards compatibility helpers
+        public double PlannedValue => PlannedCost > 0 ? PlannedCost : PlannedUnits;
+        public double EarnedValue => EarnedCost > 0 ? EarnedCost : EarnedUnits;
+    }
+
     public class WeeklyValueItem
     {
         public string WeekLabel { get; set; } = string.Empty;
@@ -69,6 +143,35 @@ namespace AlaaRep.Schedule.Core.Models
         public int WeekNumber { get; set; }
         public double PlannedValue { get; set; }
         public double EarnedValue { get; set; }
+    }
+
+    public class PeriodicAggregatePoint
+    {
+        public string PeriodLabel { get; set; } = string.Empty;
+        public DateTime? PeriodDate { get; set; }
+        public int PeriodIndex { get; set; }
+
+        // Unit-wise metrics
+        public double PeriodicPlannedUnits { get; set; }
+        public double PeriodicEarnedUnits { get; set; }
+        public double CumulativePlannedUnits { get; set; }
+        public double CumulativeEarnedUnits { get; set; }
+        public double UnitsScheduleVariance => CumulativeEarnedUnits - CumulativePlannedUnits;
+        public double UnitsSchedulePerformanceIndex => CumulativePlannedUnits > 0
+            ? Math.Round(CumulativeEarnedUnits / CumulativePlannedUnits, 3)
+            : 1.0;
+        public double UnitsPercentComplete { get; set; }
+
+        // Cost-wise metrics
+        public double PeriodicPlannedCost { get; set; }
+        public double PeriodicEarnedCost { get; set; }
+        public double CumulativePlannedCost { get; set; }
+        public double CumulativeEarnedCost { get; set; }
+        public double CostScheduleVariance => CumulativeEarnedCost - CumulativePlannedCost;
+        public double CostSchedulePerformanceIndex => CumulativePlannedCost > 0
+            ? Math.Round(CumulativeEarnedCost / CumulativePlannedCost, 3)
+            : 1.0;
+        public double CostPercentComplete { get; set; }
     }
 
     public class WeeklyAggregatePoint
@@ -86,6 +189,36 @@ namespace AlaaRep.Schedule.Core.Models
             : 1.0;
     }
 
+    public class LookaheadScheduleItem
+    {
+        public string ActivityId { get; set; } = string.Empty;
+        public string ActivityName { get; set; } = string.Empty;
+        public DateTime? PlannedStartDate { get; set; }
+        public DateTime? PlannedFinishDate { get; set; }
+        public DateTime? ForecastStartDate { get; set; }
+        public DateTime? ForecastFinishDate { get; set; }
+        public int? VarianceDays { get; set; }
+        public double PercentComplete { get; set; }
+        public double SchedulePercent { get; set; }
+
+        public double TotalPlannedUnits { get; set; }
+        public double EarnedUnits { get; set; }
+        public double RemainingUnits => Math.Max(0, TotalPlannedUnits - EarnedUnits);
+
+        public double TotalPlannedCost { get; set; }
+        public double EarnedCost { get; set; }
+        public double RemainingCost => Math.Max(0, TotalPlannedCost - EarnedCost);
+
+        public double LookaheadPlannedUnits { get; set; }
+        public double LookaheadPlannedCost { get; set; }
+
+        public ActivityStatus Status { get; set; }
+        public string LookaheadPhase { get; set; } = "Ongoing"; // Starting In Window, Ongoing, Finishing In Window
+        public int DaysUntilForecastStart { get; set; }
+        public int DaysUntilForecastFinish { get; set; }
+        public bool IsDelayed => VarianceDays.HasValue && VarianceDays.Value < 0;
+    }
+
     public class ScheduleProjectSummary
     {
         public string ProjectTitle { get; set; } = "Schedule & Earned Value Update";
@@ -96,21 +229,64 @@ namespace AlaaRep.Schedule.Core.Models
         public int CompletedCount { get; set; }
         public int DelayedCount { get; set; }
 
-        public double TotalBudgetAtCompletion { get; set; } // Total BAC
-        public double TotalPlannedValue { get; set; } // Current Cumulative PV
-        public double TotalEarnedValue { get; set; } // Current Cumulative EV
-        public double ScheduleVariance => TotalEarnedValue - TotalPlannedValue; // SV = EV - PV
+        // Unit-Wise Aggregates (Labor units)
+        public double TotalUnitsBudgetAtCompletion { get; set; } // BAC Units
+        public double TotalUnitsPlannedValue { get; set; } // Cumulative PV Units
+        public double TotalUnitsEarnedValue { get; set; } // Cumulative EV Units
+        public double UnitsScheduleVariance => TotalUnitsEarnedValue - TotalUnitsPlannedValue;
+        public double UnitsScheduleVariancePercent => TotalUnitsPlannedValue > 0
+            ? Math.Round((UnitsScheduleVariance / TotalUnitsPlannedValue) * 100.0, 2)
+            : 0.0;
+        public double UnitsSchedulePerformanceIndex => TotalUnitsPlannedValue > 0
+            ? Math.Round(TotalUnitsEarnedValue / TotalUnitsPlannedValue, 3)
+            : 1.0;
+        public double OverallUnitsProgressPercent => TotalUnitsBudgetAtCompletion > 0
+            ? Math.Round((TotalUnitsEarnedValue / TotalUnitsBudgetAtCompletion) * 100.0, 2)
+            : 0.0;
+
+        // Cost-Wise Aggregates ($)
+        public double TotalCostBudgetAtCompletion { get; set; } // BAC Cost
+        public double TotalCostPlannedValue { get; set; } // Cumulative PV Cost
+        public double TotalCostEarnedValue { get; set; } // Cumulative EV Cost
+        public double CostScheduleVariance => TotalCostEarnedValue - TotalCostPlannedValue;
+        public double CostScheduleVariancePercent => TotalCostPlannedValue > 0
+            ? Math.Round((CostScheduleVariance / TotalCostPlannedValue) * 100.0, 2)
+            : 0.0;
+        public double CostSchedulePerformanceIndex => TotalCostPlannedValue > 0
+            ? Math.Round(TotalCostEarnedValue / TotalCostPlannedValue, 3)
+            : 1.0;
+        public double OverallCostProgressPercent => TotalCostBudgetAtCompletion > 0
+            ? Math.Round((TotalCostEarnedValue / TotalCostBudgetAtCompletion) * 100.0, 2)
+            : 0.0;
+
+        // Backward compatibility properties
+        public double TotalBudgetAtCompletion
+        {
+            get => TotalCostBudgetAtCompletion > 0 ? TotalCostBudgetAtCompletion : TotalUnitsBudgetAtCompletion;
+            set { if (TotalCostBudgetAtCompletion == 0) TotalCostBudgetAtCompletion = value; }
+        }
+        public double TotalPlannedValue
+        {
+            get => TotalCostPlannedValue > 0 ? TotalCostPlannedValue : TotalUnitsPlannedValue;
+            set { if (TotalCostPlannedValue == 0) TotalCostPlannedValue = value; }
+        }
+        public double TotalEarnedValue
+        {
+            get => TotalCostEarnedValue > 0 ? TotalCostEarnedValue : TotalUnitsEarnedValue;
+            set { if (TotalCostEarnedValue == 0) TotalCostEarnedValue = value; }
+        }
+        public double ScheduleVariance => TotalEarnedValue - TotalPlannedValue;
         public double ScheduleVariancePercent => TotalPlannedValue > 0
             ? Math.Round((ScheduleVariance / TotalPlannedValue) * 100.0, 2)
             : 0.0;
         public double SchedulePerformanceIndex => TotalPlannedValue > 0
             ? Math.Round(TotalEarnedValue / TotalPlannedValue, 3)
-            : 1.0; // SPI = EV / PV
-
+            : 1.0;
         public double OverallProgressPercent => TotalBudgetAtCompletion > 0
             ? Math.Round((TotalEarnedValue / TotalBudgetAtCompletion) * 100.0, 2)
             : 0.0;
 
+        // Dates & Variances
         public DateTime? ProjectPlannedStart { get; set; }
         public DateTime? ProjectPlannedFinish { get; set; }
         public DateTime? ProjectForecastStart { get; set; }
@@ -119,7 +295,13 @@ namespace AlaaRep.Schedule.Core.Models
             ? (int)(ProjectPlannedFinish.Value.Date - ProjectForecastFinish.Value.Date).TotalDays
             : 0;
 
-        public List<ActivityScheduleItem> Activities { get; set; } = new();
+        // Matrix & Time Series
+        public List<string> TimelinePeriodHeaders { get; set; } = new();
+        public List<PeriodicAggregatePoint> MonthlySeries { get; set; } = new();
         public List<WeeklyAggregatePoint> WeeklySeries { get; set; } = new();
+
+        // Activities and Lookaheads
+        public List<ActivityScheduleItem> Activities { get; set; } = new();
+        public List<LookaheadScheduleItem> LookaheadActivities { get; set; } = new();
     }
 }

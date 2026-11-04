@@ -51,11 +51,7 @@ namespace AlaaRep.Schedule.Tests
             Assert.Equal(2, summary.TotalActivities);
             Assert.Equal(300, summary.TotalBudgetAtCompletion);
 
-            // W1 PV = 40 + 10 = 50; W1 EV = 30 + 10 = 40;
-            // W2 PV = 60 + 50 = 110; W2 EV = 50 + 40 = 90;
-            // Cumulative PV = 50 + 110 = 160; Cumulative EV = 40 + 90 = 130
             Assert.Equal(2, summary.WeeklySeries.Count);
-
             Assert.Equal(50, summary.WeeklySeries[0].WeeklyPlannedValue);
             Assert.Equal(40, summary.WeeklySeries[0].WeeklyEarnedValue);
             Assert.Equal(50, summary.WeeklySeries[0].CumulativePlannedValue);
@@ -73,6 +69,85 @@ namespace AlaaRep.Schedule.Tests
             Assert.Equal(Math.Round(130.0 / 160.0, 3), summary.SchedulePerformanceIndex);
             Assert.Equal(new DateTime(2026, 1, 1), summary.ProjectPlannedStart);
             Assert.Equal(new DateTime(2026, 1, 25), summary.ProjectPlannedFinish);
+        }
+
+        [Fact]
+        public void CalculateSummary_WithMonthlyCostAndUnits_CalculatesDualSeries()
+        {
+            var engine = new EvmCalculationEngine();
+
+            var act1 = new ActivityScheduleItem
+            {
+                ActivityId = "ACT-1",
+                ActivityName = "Earth Works",
+                BudgetAtCompletionUnits = 1000,
+                BudgetAtCompletionCost = 100000,
+                PeriodValues = new List<PeriodicValueItem>
+                {
+                    new() { PeriodLabel = "1-Sep-26", PeriodDate = new DateTime(2026, 9, 1), PlannedUnits = 400, EarnedUnits = 400, PlannedCost = 40000, EarnedCost = 40000 },
+                    new() { PeriodLabel = "1-Oct-26", PeriodDate = new DateTime(2026, 10, 1), PlannedUnits = 600, EarnedUnits = 500, PlannedCost = 60000, EarnedCost = 50000 }
+                }
+            };
+
+            var summary = engine.CalculateSummary(new List<ActivityScheduleItem> { act1 }, "Dual Metric Test");
+
+            Assert.Equal(2, summary.MonthlySeries.Count);
+
+            // Unit wise checks
+            Assert.Equal(1000, summary.MonthlySeries[1].CumulativePlannedUnits);
+            Assert.Equal(900, summary.MonthlySeries[1].CumulativeEarnedUnits);
+            Assert.Equal(-100, summary.UnitsScheduleVariance);
+            Assert.Equal(0.9, summary.UnitsSchedulePerformanceIndex);
+
+            // Cost wise checks
+            Assert.Equal(100000, summary.MonthlySeries[1].CumulativePlannedCost);
+            Assert.Equal(90000, summary.MonthlySeries[1].CumulativeEarnedCost);
+            Assert.Equal(-10000, summary.CostScheduleVariance);
+            Assert.Equal(0.9, summary.CostSchedulePerformanceIndex);
+        }
+
+        [Fact]
+        public void CalculateLookahead_FiltersUpcomingActivitiesWithinHorizon()
+        {
+            var engine = new EvmCalculationEngine();
+            var baseDate = new DateTime(2026, 10, 1);
+
+            var actPast = new ActivityScheduleItem
+            {
+                ActivityId = "PAST-1",
+                ActivityName = "Completed Mobilization",
+                ForecastStartDate = new DateTime(2026, 9, 1),
+                ForecastFinishDate = new DateTime(2026, 9, 25),
+                EarnedUnitsToDate = 500,
+                BudgetAtCompletionUnits = 500 // 100% complete
+            };
+
+            var actCurrent = new ActivityScheduleItem
+            {
+                ActivityId = "CUR-1",
+                ActivityName = "Excavation",
+                ForecastStartDate = new DateTime(2026, 10, 5),
+                ForecastFinishDate = new DateTime(2026, 10, 20),
+                EarnedUnitsToDate = 50,
+                BudgetAtCompletionUnits = 200
+            };
+
+            var actFuture = new ActivityScheduleItem
+            {
+                ActivityId = "FUT-1",
+                ActivityName = "Finishes",
+                ForecastStartDate = new DateTime(2027, 5, 1),
+                ForecastFinishDate = new DateTime(2027, 8, 1),
+                BudgetAtCompletionUnits = 1000
+            };
+
+            var lookahead = engine.CalculateLookahead(new List<ActivityScheduleItem> { actPast, actCurrent, actFuture }, baseDate, lookaheadDays: 30);
+
+            // Only actCurrent should be included in 30-day window from Oct 1
+            Assert.Single(lookahead);
+            Assert.Equal("CUR-1", lookahead[0].ActivityId);
+            Assert.Equal("Entirely in Window", lookahead[0].LookaheadPhase);
+            Assert.Equal(4, lookahead[0].DaysUntilForecastStart);
         }
 
         [Fact]

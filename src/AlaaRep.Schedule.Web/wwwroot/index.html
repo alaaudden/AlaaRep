@@ -20,10 +20,15 @@
       </div>
       <div>
         <h1 class="brand-title">AlaaRep Schedule & EVM Dashboard</h1>
-        <p class="brand-subtitle">Project Time Schedule Updates, Forecasts & Earned Value Analytics</p>
+        <p class="brand-subtitle">Project Time Schedule Updates, Cost & Unit Curves, Matrix Timeline & Lookahead</p>
       </div>
     </div>
     <div class="navbar-actions">
+      <!-- Metric Mode Toggle: Unit-Wise vs Cost-Wise -->
+      <div class="mode-toggle-group">
+        <button id="btnModeUnits" class="btn-toggle active" title="View Labor Units & Unit S-Curve">Unit Wise (Labor)</button>
+        <button id="btnModeCost" class="btn-toggle" title="View Financial Values & Cost S-Curve">Cost Wise ($)</button>
+      </div>
       <button id="btnDownloadSample" class="btn btn-secondary">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -49,14 +54,14 @@
     <!-- Upload Dropzone (Collapsible/Drag-and-Drop) -->
     <section id="dropZone" class="upload-dropzone">
       <div class="dropzone-content">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="12" y1="18" x2="12" y2="12"/>
           <line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
         <p class="dropzone-text"><strong>Drag & Drop Excel Schedule Sheet here</strong> or browse from device</p>
-        <span class="dropzone-hint">Supports columns: Activity ID, Activity Name, Planned Dates, Forecast Dates, Weekly Planned & Earned Values</span>
+        <span class="dropzone-hint">Supports columns: Activity ID, Activity Name, Var (days), Schedule %, Perform. %, Monthly/Weekly Timeline Columns</span>
       </div>
       <div id="uploadStatus" class="upload-status" style="display: none;"></div>
     </section>
@@ -66,6 +71,7 @@
       <div>
         <h2 id="projectTitle" class="project-title">Loading project schedule...</h2>
         <div class="project-date-chips">
+          <span class="chip">Data Date: <strong id="projDataDateSpan">-</strong></span>
           <span class="chip">Planned: <strong id="projPlannedSpan">-</strong></span>
           <span class="chip">Forecast: <strong id="projForecastSpan">-</strong></span>
           <span class="chip" id="varianceChip">Variance: <strong id="projVarianceSpan">-</strong></span>
@@ -83,66 +89,147 @@
     <!-- Executive KPI Cards -->
     <section class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-title">Total BAC (Budget)</div>
-        <div id="kpiBac" class="kpi-value">$0.00</div>
-        <div class="kpi-footer">Total baseline planned value</div>
+        <div class="kpi-title" id="kpiBacTitle">Total BAC (Units)</div>
+        <div id="kpiBac" class="kpi-value">0</div>
+        <div class="kpi-footer">Total baseline scope</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-title">Planned Value (PV)</div>
-        <div id="kpiPv" class="kpi-value">$0.00</div>
-        <div class="kpi-footer">Cumulative scheduled work</div>
+        <div class="kpi-title" id="kpiPvTitle">Planned Value (PV)</div>
+        <div id="kpiPv" class="kpi-value">0</div>
+        <div class="kpi-footer">Baseline scheduled to date</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-title">Earned Value (EV)</div>
-        <div id="kpiEv" class="kpi-value">$0.00</div>
-        <div class="kpi-footer">Cumulative performed work</div>
+        <div class="kpi-title" id="kpiEvTitle">Earned Value (EV)</div>
+        <div id="kpiEv" class="kpi-value">0</div>
+        <div class="kpi-footer">Actual earned work to date</div>
       </div>
       <div class="kpi-card" id="kpiCardSv">
-        <div class="kpi-title">Schedule Variance (SV)</div>
-        <div id="kpiSv" class="kpi-value">$0.00</div>
+        <div class="kpi-title" id="kpiSvTitle">Schedule Variance (SV)</div>
+        <div id="kpiSv" class="kpi-value">0</div>
         <div id="kpiSvSub" class="kpi-footer">EV - PV (Variance)</div>
       </div>
       <div class="kpi-card" id="kpiCardSpi">
-        <div class="kpi-title">SPI (Schedule Performance)</div>
+        <div class="kpi-title">SPI (Schedule Index)</div>
         <div id="kpiSpi" class="kpi-value">1.00</div>
         <div id="kpiSpiSub" class="kpi-footer">&gt; 1.0 Ahead | &lt; 1.0 Behind</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-title">Overall Physical Progress</div>
+        <div class="kpi-title">Schedule Progress</div>
         <div id="kpiProgress" class="kpi-value">0%</div>
-        <div class="kpi-footer">EV / BAC Complete</div>
+        <div class="kpi-footer" id="kpiProgressFooter">EV / BAC Complete</div>
       </div>
     </section>
 
-    <!-- Charts Section -->
+    <!-- Primary S-Curve Chart (Matching user image style) -->
     <section class="charts-section">
-      <div class="chart-card">
-        <div class="card-header">
-          <h3 class="card-title">Cumulative S-Curve (Planned Value vs Earned Value)</h3>
-          <span class="card-subtitle">Project baseline trajectory vs actual progress</span>
+      <div class="chart-card full-width">
+        <div class="card-header chart-header-row">
+          <div>
+            <h3 class="card-title" id="sCurveTitle">Monthly Planned vs. Earned Values & S-Curve</h3>
+            <span class="card-subtitle" id="sCurveSubtitle">Displaying monthly periodic bars and cumulative S-Curves (Planned S-curve & Earned S-curve)</span>
+          </div>
+          <div class="chart-legend-badge-group">
+            <span class="legend-badge badge-planned"><span class="badge-dot dot-planned"></span> <span id="labelPlannedLegend">Labor unit - Planned S curve</span></span>
+            <span class="legend-badge badge-earned"><span class="badge-dot dot-earned"></span> <span id="labelEarnedLegend">Labor unit - Earned S curve</span></span>
+          </div>
         </div>
-        <div class="chart-container">
+        <div class="chart-container large-chart">
           <canvas id="sCurveChart"></canvas>
         </div>
       </div>
+    </section>
 
-      <div class="chart-card">
-        <div class="card-header">
-          <h3 class="card-title">Weekly Incremental Performance</h3>
-          <span class="card-subtitle">Weekly planned progress vs weekly earned progress</span>
+    <!-- Lookahead Schedule Section -->
+    <section class="lookahead-section">
+      <div class="lookahead-header">
+        <div class="lookahead-title-area">
+          <div class="icon-tag">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="card-title">Individual Lookahead Schedule</h3>
+            <span class="card-subtitle">Upcoming and active tasks within the project lookahead forecast window</span>
+          </div>
         </div>
-        <div class="chart-container">
-          <canvas id="weeklyBarChart"></canvas>
+
+        <div class="lookahead-controls">
+          <span class="control-label">Lookahead Window:</span>
+          <div class="lookahead-pill-selector">
+            <button class="btn-lookahead" data-days="14">2 Weeks (14d)</button>
+            <button class="btn-lookahead active" data-days="30">1 Month (30d)</button>
+            <button class="btn-lookahead" data-days="60">2 Months (60d)</button>
+            <button class="btn-lookahead" data-days="90">3 Months (90d)</button>
+          </div>
+          <button id="btnExportLookahead" class="btn btn-sm btn-secondary" title="Export Lookahead Schedule to CSV">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export Lookahead
+          </button>
         </div>
+      </div>
+
+      <!-- Lookahead Summary Badges -->
+      <div class="lookahead-kpis">
+        <div class="lh-kpi-item">
+          <span class="lh-kpi-lbl">Activities in Window</span>
+          <strong id="lhCount" class="lh-kpi-val">0</strong>
+        </div>
+        <div class="lh-kpi-item">
+          <span class="lh-kpi-lbl">Starting in Window</span>
+          <strong id="lhStartingCount" class="lh-kpi-val">0</strong>
+        </div>
+        <div class="lh-kpi-item">
+          <span class="lh-kpi-lbl">Finishing in Window</span>
+          <strong id="lhFinishingCount" class="lh-kpi-val">0</strong>
+        </div>
+        <div class="lh-kpi-item highlight-red">
+          <span class="lh-kpi-lbl">Critical / Delayed</span>
+          <strong id="lhDelayedCount" class="lh-kpi-val">0</strong>
+        </div>
+        <div class="lh-kpi-item highlight-blue">
+          <span class="lh-kpi-lbl" id="lhUnitsCostLabel">Planned Scope in Window</span>
+          <strong id="lhScopeValue" class="lh-kpi-val">0</strong>
+        </div>
+      </div>
+
+      <!-- Lookahead Table -->
+      <div class="table-responsive">
+        <table class="data-table lookahead-table" id="lookaheadTable">
+          <thead>
+            <tr>
+              <th>Activity ID</th>
+              <th>Activity Name</th>
+              <th>Lookahead Phase</th>
+              <th>Forecast Start</th>
+              <th>Forecast Finish</th>
+              <th>Days Until Start</th>
+              <th>Var (days)</th>
+              <th id="lhHeaderTotal">BAC</th>
+              <th id="lhHeaderRemaining">Remaining</th>
+              <th id="lhHeaderWindow">In Window</th>
+              <th>% Comp</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="lookaheadTableBody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
       </div>
     </section>
 
-    <!-- Activity Time Schedule Table -->
+    <!-- Schedule Matrix / Gantt Grid Table (Matching attached Excel spreadsheet layout) -->
     <section class="table-card">
       <div class="table-toolbar">
         <div>
-          <h3 class="card-title">Activity Schedule & Variance Detail</h3>
-          <span class="card-subtitle">Planned vs forecast milestones, duration & EV status</span>
+          <h3 class="card-title">Schedule Distribution & Progress Matrix</h3>
+          <span class="card-subtitle">Detailed spreadsheet view with periodic distribution and data-date tracking</span>
         </div>
         <div class="toolbar-controls">
           <input type="text" id="searchInput" placeholder="Search Activity ID or Name..." class="search-input">
@@ -156,24 +243,12 @@
         </div>
       </div>
 
-      <div class="table-responsive">
-        <table class="data-table" id="activityTable">
-          <thead>
-            <tr>
-              <th>Activity ID</th>
-              <th>Activity Name</th>
-              <th>Planned Start</th>
-              <th>Planned Finish</th>
-              <th>Forecast Start</th>
-              <th>Forecast Finish</th>
-              <th>Slippage</th>
-              <th>BAC ($)</th>
-              <th>EV ($)</th>
-              <th>Progress</th>
-              <th>Status</th>
-            </tr>
+      <div class="table-responsive matrix-container">
+        <table class="data-table matrix-table" id="matrixTable">
+          <thead id="matrixTableHead">
+            <!-- Populated dynamically with ID, Name, Var, Sched %, Perf % and Timeline Date columns -->
           </thead>
-          <tbody id="activityTableBody">
+          <tbody id="matrixTableBody">
             <!-- Populated via JavaScript -->
           </tbody>
         </table>
@@ -182,7 +257,7 @@
   </main>
 
   <footer class="dashboard-footer">
-    <p>AlaaRep Schedule & Earned Value Management System &bull; .NET 8 / ClosedXML &bull; Project Analytics</p>
+    <p>AlaaRep Schedule & Earned Value Management System &bull; .NET 8 / ClosedXML &bull; Cost-Wise & Unit-Wise S-Curve & Lookahead Analytics</p>
   </footer>
 
   <script src="/js/dashboard.js"></script>

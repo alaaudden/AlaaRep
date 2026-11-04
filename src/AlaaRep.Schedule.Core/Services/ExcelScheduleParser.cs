@@ -35,6 +35,16 @@ namespace AlaaRep.Schedule.Core.Services
             return ParseWorksheet(worksheet);
         }
 
+        public class TimelineColumnDef
+        {
+            public int ColumnIndex { get; set; }
+            public string HeaderText { get; set; } = string.Empty;
+            public DateTime? PeriodDate { get; set; }
+            public bool IsCost { get; set; }
+            public bool IsEarned { get; set; }
+            public int WeekNumber { get; set; }
+        }
+
         public ScheduleProjectSummary ParseWorksheet(IXLWorksheet worksheet)
         {
             var headerRowIndex = FindHeaderRow(worksheet);
@@ -44,7 +54,7 @@ namespace AlaaRep.Schedule.Core.Services
             }
 
             var headerRow = worksheet.Row(headerRowIndex);
-            var columnMap = MapColumns(headerRow);
+            var (columnMap, timelineCols) = MapColumns(headerRow);
 
             if (!columnMap.ContainsKey("activity_id") && !columnMap.ContainsKey("activity_name"))
             {
@@ -54,23 +64,64 @@ namespace AlaaRep.Schedule.Core.Services
             var activities = new List<ActivityScheduleItem>();
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRowIndex;
 
+            DateTime? detectedDataDate = null;
+
             for (int r = headerRowIndex + 1; r <= lastRow; r++)
             {
                 var row = worksheet.Row(r);
                 if (row.IsEmpty()) continue;
 
-                var id = columnMap.ContainsKey("activity_id") ? row.Cell(columnMap["activity_id"]).GetString().Trim() : $"ACT-{r - headerRowIndex}";
+                var id = columnMap.ContainsKey("activity_id") ? row.Cell(columnMap["activity_id"]).GetString().Trim() : string.Empty;
                 var name = columnMap.ContainsKey("activity_name") ? row.Cell(columnMap["activity_name"]).GetString().Trim() : string.Empty;
 
                 if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(name))
                     continue;
 
+                // Detect indentation level or summary rows
+                int indentLevel = 0;
+                if (columnMap.ContainsKey("activity_id"))
+                {
+                    indentLevel = Math.Max(0, row.Cell(columnMap["activity_id"]).Style.Alignment.Indent);
+                }
+                if (indentLevel == 0 && columnMap.ContainsKey("activity_name"))
+                {
+                    indentLevel = Math.Max(0, row.Cell(columnMap["activity_name"]).Style.Alignment.Indent);
+                }
+
+                bool isBold = false;
+                if (columnMap.ContainsKey("activity_id") && row.Cell(columnMap["activity_id"]).Style.Font.Bold)
+                    isBold = true;
+                if (columnMap.ContainsKey("activity_name") && row.Cell(columnMap["activity_name"]).Style.Font.Bold)
+                    isBold = true;
+
                 var activity = new ActivityScheduleItem
                 {
-                    ActivityId = string.IsNullOrWhiteSpace(id) ? $"ACT-{r - headerRowIndex}" : id,
-                    ActivityName = string.IsNullOrWhiteSpace(name) ? id : name
+                    ActivityId = string.IsNullOrWhiteSpace(id) ? (string.IsNullOrWhiteSpace(name) ? $"ACT-{r - headerRowIndex}" : name) : id,
+                    ActivityName = string.IsNullOrWhiteSpace(name) ? id : name,
+                    Level = indentLevel,
+                    IsSummary = isBold && indentLevel <= 1
                 };
 
+                // Schedule variance days
+                if (columnMap.TryGetValue("var_days", out int varCol))
+                {
+                    var val = TryGetInt(row.Cell(varCol));
+                    if (val.HasValue) activity.VarianceDays = val.Value;
+                }
+
+                // Schedule %
+                if (columnMap.TryGetValue("schedule_pct", out int schedCol))
+                {
+                    activity.SchedulePercent = TryGetPercent(row.Cell(schedCol));
+                }
+
+                // Performance %
+                if (columnMap.TryGetValue("perform_pct", out int perfCol))
+                {
+                    activity.PerformancePercent = TryGetPercent(row.Cell(perfCol));
+                }
+
+                // Planned & Forecast dates
                 if (columnMap.TryGetValue("planned_start", out int psCol))
                     activity.PlannedStartDate = TryGetDate(row.Cell(psCol));
 
@@ -83,69 +134,176 @@ namespace AlaaRep.Schedule.Core.Services
                 if (columnMap.TryGetValue("forecast_finish", out int ffCol))
                     activity.ForecastFinishDate = TryGetDate(row.Cell(ffCol));
 
-                if (columnMap.TryGetValue("bac", out int bacCol))
-                    activity.BudgetAtCompletion = TryGetDouble(row.Cell(bacCol));
+                // BAC, EV, PV Cost
+                if (columnMap.TryGetValue("bac_cost", out int bCostCol))
+                    activity.BudgetAtCompletionCost = TryGetDouble(row.Cell(bCostCol));
+                else if (columnMap.TryGetValue("bac", out int bacCol))
+                    activity.BudgetAtCompletionCost = TryGetDouble(row.Cell(bacCol));
 
-                if (columnMap.TryGetValue("earned_value", out int evCol))
-                    activity.EarnedValueToDate = TryGetDouble(row.Cell(evCol));
+                if (columnMap.TryGetValue("earned_cost", out int eCostCol))
+                    activity.EarnedCostToDate = TryGetDouble(row.Cell(eCostCol));
+                else if (columnMap.TryGetValue("earned_value", out int evCol))
+                    activity.EarnedCostToDate = TryGetDouble(row.Cell(evCol));
 
-                if (columnMap.TryGetValue("planned_value", out int pvCol))
-                    activity.PlannedValueToDate = TryGetDouble(row.Cell(pvCol));
+                if (columnMap.TryGetValue("planned_cost", out int pCostCol))
+                    activity.PlannedCostToDate = TryGetDouble(row.Cell(pCostCol));
+                else if (columnMap.TryGetValue("planned_value", out int pvCol))
+                    activity.PlannedCostToDate = TryGetDouble(row.Cell(pvCol));
 
-                // Process weekly columns
-                foreach (var weeklyCol in _weeklyColumns)
+                // BAC, EV, PV Units
+                if (columnMap.TryGetValue("bac_units", out int bUnitsCol))
+                    activity.BudgetAtCompletionUnits = TryGetDouble(row.Cell(bUnitsCol));
+
+                if (columnMap.TryGetValue("earned_units", out int eUnitsCol))
+                    activity.EarnedUnitsToDate = TryGetDouble(row.Cell(eUnitsCol));
+
+                if (columnMap.TryGetValue("planned_units", out int pUnitsCol))
+                    activity.PlannedUnitsToDate = TryGetDouble(row.Cell(pUnitsCol));
+
+                // Parse Timeline Columns (e.g. 1-Sep-26, 1-Oct-26, etc.)
+                int periodIndex = 1;
+                foreach (var tCol in timelineCols)
                 {
-                    double pv = 0;
-                    double ev = 0;
+                    var cell = row.Cell(tCol.ColumnIndex);
+                    double cellVal = TryGetDouble(cell);
 
-                    if (weeklyCol.PlannedColIndex.HasValue)
-                        pv = TryGetDouble(row.Cell(weeklyCol.PlannedColIndex.Value));
-
-                    if (weeklyCol.EarnedColIndex.HasValue)
-                        ev = TryGetDouble(row.Cell(weeklyCol.EarnedColIndex.Value));
-
-                    activity.WeeklyValues.Add(new WeeklyValueItem
+                    // Look for existing period item or add new
+                    var existing = activity.PeriodValues.FirstOrDefault(p => p.PeriodLabel == tCol.HeaderText);
+                    if (existing == null)
                     {
-                        WeekNumber = weeklyCol.WeekNumber,
-                        WeekLabel = weeklyCol.WeekLabel,
-                        WeekEndingDate = weeklyCol.WeekDate,
-                        PlannedValue = pv,
-                        EarnedValue = ev
-                    });
+                        existing = new PeriodicValueItem
+                        {
+                            PeriodIndex = periodIndex++,
+                            PeriodLabel = tCol.HeaderText,
+                            PeriodDate = tCol.PeriodDate
+                        };
+                        activity.PeriodValues.Add(existing);
+                    }
+
+                    if (tCol.IsCost)
+                    {
+                        if (tCol.IsEarned) existing.EarnedCost = cellVal;
+                        else existing.PlannedCost = cellVal;
+                    }
+                    else
+                    {
+                        // Default to Units (or standard value)
+                        if (tCol.IsEarned) existing.EarnedUnits = cellVal;
+                        else existing.PlannedUnits = cellVal;
+                    }
+
+                    // Backwards compatible weekly item
+                    if (tCol.WeekNumber > 0)
+                    {
+                        var wItem = activity.WeeklyValues.FirstOrDefault(w => w.WeekNumber == tCol.WeekNumber);
+                        if (wItem == null)
+                        {
+                            wItem = new WeeklyValueItem
+                            {
+                                WeekNumber = tCol.WeekNumber,
+                                WeekLabel = tCol.HeaderText,
+                                WeekEndingDate = tCol.PeriodDate
+                            };
+                            activity.WeeklyValues.Add(wItem);
+                        }
+                        if (tCol.IsEarned) wItem.EarnedValue = cellVal;
+                        else wItem.PlannedValue = cellVal;
+                    }
                 }
 
-                if (activity.WeeklyValues.Any())
+                // If monthly units or cost values exist, infer dates & BAC if missing
+                if (activity.PeriodValues.Any())
                 {
-                    var sumPv = activity.WeeklyValues.Sum(w => w.PlannedValue);
-                    var sumEv = activity.WeeklyValues.Sum(w => w.EarnedValue);
+                    var activePeriods = activity.PeriodValues.Where(p => p.PlannedUnits > 0 || p.EarnedUnits > 0 || p.PlannedCost > 0 || p.EarnedCost > 0).ToList();
+                    if (activePeriods.Any())
+                    {
+                        var firstDate = activePeriods.First().PeriodDate;
+                        var lastDate = activePeriods.Last().PeriodDate;
+                        if (!activity.PlannedStartDate.HasValue && firstDate.HasValue)
+                            activity.PlannedStartDate = firstDate.Value;
+                        if (!activity.PlannedFinishDate.HasValue && lastDate.HasValue)
+                            activity.PlannedFinishDate = lastDate.Value.AddDays(28); // end of that month
 
-                    if (activity.BudgetAtCompletion <= 0 && sumPv > 0)
-                        activity.BudgetAtCompletion = sumPv;
+                        if (!activity.ForecastStartDate.HasValue) activity.ForecastStartDate = activity.PlannedStartDate;
+                        if (!activity.ForecastFinishDate.HasValue)
+                        {
+                            int shift = activity.VarianceDays.HasValue ? -activity.VarianceDays.Value : 0;
+                            activity.ForecastFinishDate = activity.PlannedFinishDate?.AddDays(shift);
+                        }
+                    }
 
-                    if (activity.PlannedValueToDate <= 0 && sumPv > 0)
-                        activity.PlannedValueToDate = sumPv;
+                    var totalPUnits = activity.PeriodValues.Sum(p => p.PlannedUnits);
+                    var totalEUnits = activity.PeriodValues.Sum(p => p.EarnedUnits);
+                    var totalPCost = activity.PeriodValues.Sum(p => p.PlannedCost);
+                    var totalECost = activity.PeriodValues.Sum(p => p.EarnedCost);
 
-                    if (activity.EarnedValueToDate <= 0 && sumEv > 0)
-                        activity.EarnedValueToDate = sumEv;
+                    if (activity.BudgetAtCompletionUnits <= 0 && totalPUnits > 0)
+                        activity.BudgetAtCompletionUnits = totalPUnits;
+
+                    if (activity.EarnedUnitsToDate <= 0 && totalEUnits > 0)
+                        activity.EarnedUnitsToDate = totalEUnits;
+
+                    if (activity.PlannedUnitsToDate <= 0 && totalPUnits > 0)
+                        activity.PlannedUnitsToDate = totalPUnits;
+
+                    if (activity.BudgetAtCompletionCost <= 0 && totalPCost > 0)
+                        activity.BudgetAtCompletionCost = totalPCost;
+
+                    if (activity.EarnedCostToDate <= 0 && totalECost > 0)
+                        activity.EarnedCostToDate = totalECost;
+
+                    if (activity.PlannedCostToDate <= 0 && totalPCost > 0)
+                        activity.PlannedCostToDate = totalPCost;
+
+                    // If cost values were not specified separately, mirror units 1:1 unless cost was explicitly supplied
+                    if (activity.BudgetAtCompletionCost <= 0 && activity.BudgetAtCompletionUnits > 0)
+                    {
+                        activity.BudgetAtCompletionCost = activity.BudgetAtCompletionUnits;
+                        activity.PlannedCostToDate = activity.PlannedUnitsToDate;
+                        activity.EarnedCostToDate = activity.EarnedUnitsToDate;
+
+                        foreach (var p in activity.PeriodValues)
+                        {
+                            if (p.PlannedCost == 0) p.PlannedCost = p.PlannedUnits;
+                            if (p.EarnedCost == 0) p.EarnedCost = p.EarnedUnits;
+                        }
+                    }
+                    else if (activity.BudgetAtCompletionUnits <= 0 && activity.BudgetAtCompletionCost > 0)
+                    {
+                        activity.BudgetAtCompletionUnits = activity.BudgetAtCompletionCost;
+                        activity.PlannedUnitsToDate = activity.PlannedCostToDate;
+                        activity.EarnedUnitsToDate = activity.EarnedCostToDate;
+
+                        foreach (var p in activity.PeriodValues)
+                        {
+                            if (p.PlannedUnits == 0) p.PlannedUnits = p.PlannedCost;
+                            if (p.EarnedUnits == 0) p.EarnedUnits = p.EarnedCost;
+                        }
+                    }
                 }
 
                 activities.Add(activity);
             }
 
+            // Estimate Data Date from periods that have earned values
+            var earnedDates = activities.SelectMany(a => a.PeriodValues)
+                .Where(p => (p.EarnedUnits > 0 || p.EarnedCost > 0) && p.PeriodDate.HasValue)
+                .Select(p => p.PeriodDate!.Value)
+                .ToList();
+
+            if (earnedDates.Any())
+            {
+                detectedDataDate = earnedDates.Max().AddDays(15);
+            }
+            else
+            {
+                detectedDataDate = DateTime.Today;
+            }
+
             var projectName = worksheet.Name;
-            return _calculationEngine.CalculateSummary(activities, projectName);
+            var summary = _calculationEngine.CalculateSummary(activities, projectName, detectedDataDate);
+            return summary;
         }
-
-        private class WeeklyColumnDef
-        {
-            public int WeekNumber { get; set; }
-            public string WeekLabel { get; set; } = string.Empty;
-            public DateTime? WeekDate { get; set; }
-            public int? PlannedColIndex { get; set; }
-            public int? EarnedColIndex { get; set; }
-        }
-
-        private List<WeeklyColumnDef> _weeklyColumns = new();
 
         private int FindHeaderRow(IXLWorksheet worksheet)
         {
@@ -154,8 +312,8 @@ namespace AlaaRep.Schedule.Core.Services
             {
                 var row = worksheet.Row(r);
                 var text = string.Join(" ", row.CellsUsed().Select(c => c.GetString().Trim().ToLowerInvariant()));
-                if ((text.Contains("activity") || text.Contains("act") || text.Contains("task") || text.Contains("wbs")) &&
-                    (text.Contains("plan") || text.Contains("start") || text.Contains("date") || text.Contains("forecast") || text.Contains("week") || text.Contains("pv") || text.Contains("ev")))
+                if ((text.Contains("activity") || text.Contains("act") || text.Contains("task") || text.Contains("wbs") || text.Contains("var") || text.Contains("schedule")) &&
+                    (text.Contains("id") || text.Contains("plan") || text.Contains("start") || text.Contains("date") || text.Contains("sep") || text.Contains("oct") || text.Contains("var") || text.Contains("%")))
                 {
                     return r;
                 }
@@ -163,13 +321,10 @@ namespace AlaaRep.Schedule.Core.Services
             return 1;
         }
 
-        private Dictionary<string, int> MapColumns(IXLRow headerRow)
+        private (Dictionary<string, int> columnMap, List<TimelineColumnDef> timelineCols) MapColumns(IXLRow headerRow)
         {
             var map = new Dictionary<string, int>();
-            _weeklyColumns = new List<WeeklyColumnDef>();
-
-            var weeklyPvDict = new Dictionary<int, (int colIndex, string label, DateTime? date)>();
-            var weeklyEvDict = new Dictionary<int, (int colIndex, string label, DateTime? date)>();
+            var timelineCols = new List<TimelineColumnDef>();
 
             foreach (var cell in headerRow.CellsUsed())
             {
@@ -184,6 +339,18 @@ namespace AlaaRep.Schedule.Core.Services
                 else if (Matches(norm, "activity name", "activity description", "task name", "description", "name", "activity"))
                 {
                     if (!map.ContainsKey("activity_name")) map["activity_name"] = col;
+                }
+                else if (norm.Contains("var") || norm.Contains("variance"))
+                {
+                    map["var_days"] = col;
+                }
+                else if (Matches(norm, "schedule %", "schedule pct", "sched %", "plan %", "planned %"))
+                {
+                    map["schedule_pct"] = col;
+                }
+                else if (Matches(norm, "perform. %", "perform %", "performance %", "act %", "actual %", "earned %"))
+                {
+                    map["perform_pct"] = col;
                 }
                 else if (Matches(norm, "planned start", "baseline start", "plan start", "bl start"))
                 {
@@ -201,13 +368,37 @@ namespace AlaaRep.Schedule.Core.Services
                 {
                     map["forecast_finish"] = col;
                 }
+                else if (norm.Contains("cost") && (norm.Contains("bac") || norm.Contains("budget")))
+                {
+                    map["bac_cost"] = col;
+                }
+                else if (norm.Contains("unit") && (norm.Contains("bac") || norm.Contains("budget")))
+                {
+                    map["bac_units"] = col;
+                }
                 else if (Matches(norm, "budget", "bac", "budget at completion", "total planned value", "total pv"))
                 {
                     map["bac"] = col;
                 }
+                else if (norm.Contains("cost") && (norm.Contains("earned") || norm.Contains("ev")))
+                {
+                    map["earned_cost"] = col;
+                }
+                else if (norm.Contains("unit") && (norm.Contains("earned") || norm.Contains("ev")))
+                {
+                    map["earned_units"] = col;
+                }
                 else if (Matches(norm, "cumulative earned value", "total earned value", "total ev", "earned value to date"))
                 {
                     map["earned_value"] = col;
+                }
+                else if (norm.Contains("cost") && (norm.Contains("planned") || norm.Contains("pv")))
+                {
+                    map["planned_cost"] = col;
+                }
+                else if (norm.Contains("unit") && (norm.Contains("planned") || norm.Contains("pv")))
+                {
+                    map["planned_units"] = col;
                 }
                 else if (Matches(norm, "cumulative planned value", "total planned value", "planned value to date"))
                 {
@@ -215,65 +406,31 @@ namespace AlaaRep.Schedule.Core.Services
                 }
                 else
                 {
-                    // Check if it's weekly PV or EV column
-                    // Formats: "W1 PV", "Week 1 Planned", "W01 PV", "2026-04-05 PV", "Week 1 EV", "W1 Earned"
+                    // Check if it's a timeline periodic column: e.g. "1-Sep-26", "Sep-26", "Oct-26", "2026-09-01", "W1", "Week 1"
+                    var colDate = TryParseDateHeader(text);
                     var weekNumMatch = Regex.Match(norm, @"(w|week|wk)\s*(\d+)", RegexOptions.IgnoreCase);
                     int weekNum = 0;
-                    if (weekNumMatch.Success)
-                    {
-                        int.TryParse(weekNumMatch.Groups[2].Value, out weekNum);
-                    }
+                    if (weekNumMatch.Success) int.TryParse(weekNumMatch.Groups[2].Value, out weekNum);
 
-                    DateTime? colDate = TryParseDateHeader(text);
-                    if (weekNum == 0 && colDate.HasValue)
-                    {
-                        weekNum = colDate.Value.DayOfYear / 7;
-                    }
+                    bool isCost = norm.Contains("cost") || norm.Contains("$");
+                    bool isEarned = norm.Contains("ev") || norm.Contains("earned") || norm.Contains("actual");
 
-                    bool isPv = norm.Contains("pv") || norm.Contains("plan") || norm.Contains("baseline");
-                    bool isEv = norm.Contains("ev") || norm.Contains("earn") || norm.Contains("actual");
-
-                    if (weekNum > 0 || isPv || isEv)
+                    if (colDate.HasValue || weekNum > 0)
                     {
-                        if (weekNum == 0)
+                        timelineCols.Add(new TimelineColumnDef
                         {
-                            // Try extracting single number
-                            var numOnly = Regex.Match(norm, @"\d+");
-                            if (numOnly.Success) int.TryParse(numOnly.Value, out weekNum);
-                        }
-
-                        if (weekNum > 0)
-                        {
-                            string label = $"W{weekNum}";
-                            if (isEv && !isPv)
-                            {
-                                weeklyEvDict[weekNum] = (col, label, colDate);
-                            }
-                            else
-                            {
-                                weeklyPvDict[weekNum] = (col, label, colDate);
-                            }
-                        }
+                            ColumnIndex = col,
+                            HeaderText = text,
+                            PeriodDate = colDate,
+                            IsCost = isCost,
+                            IsEarned = isEarned,
+                            WeekNumber = weekNum > 0 ? weekNum : (colDate.HasValue ? colDate.Value.DayOfYear / 7 : 0)
+                        });
                     }
                 }
             }
 
-            // Consolidate weekly columns
-            var allWeekNums = weeklyPvDict.Keys.Union(weeklyEvDict.Keys).OrderBy(k => k).ToList();
-            foreach (var wn in allWeekNums)
-            {
-                var def = new WeeklyColumnDef
-                {
-                    WeekNumber = wn,
-                    WeekLabel = weeklyPvDict.ContainsKey(wn) ? weeklyPvDict[wn].label : weeklyEvDict[wn].label,
-                    WeekDate = weeklyPvDict.ContainsKey(wn) ? weeklyPvDict[wn].date : weeklyEvDict[wn].date,
-                    PlannedColIndex = weeklyPvDict.ContainsKey(wn) ? weeklyPvDict[wn].colIndex : null,
-                    EarnedColIndex = weeklyEvDict.ContainsKey(wn) ? weeklyEvDict[wn].colIndex : null
-                };
-                _weeklyColumns.Add(def);
-            }
-
-            return map;
+            return (map, timelineCols);
         }
 
         private static bool Matches(string text, params string[] patterns)
@@ -311,11 +468,52 @@ namespace AlaaRep.Schedule.Core.Services
             return 0;
         }
 
+        private static int? TryGetInt(IXLCell cell)
+        {
+            if (cell.IsEmpty()) return null;
+            if (cell.DataType == XLDataType.Number)
+                return (int)cell.GetDouble();
+
+            var str = cell.GetString().Trim();
+            if (int.TryParse(str, out var val)) return val;
+            if (double.TryParse(str, out var dVal)) return (int)dVal;
+            return null;
+        }
+
+        private static double? TryGetPercent(IXLCell cell)
+        {
+            if (cell.IsEmpty()) return null;
+            if (cell.DataType == XLDataType.Number)
+            {
+                var val = cell.GetDouble();
+                // Check if it's formatted as fraction 0.1579 (15.79%) or direct 15.79
+                return val <= 1.0 ? Math.Round(val * 100.0, 2) : Math.Round(val, 2);
+            }
+
+            var str = cell.GetString().Trim().Replace("%", "");
+            if (double.TryParse(str, out var parsed))
+            {
+                return parsed <= 1.0 && cell.GetString().Contains("%") ? Math.Round(parsed * 100.0, 2) : Math.Round(parsed, 2);
+            }
+            return null;
+        }
+
         private static DateTime? TryParseDateHeader(string text)
         {
-            var match = Regex.Match(text, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})");
-            if (match.Success && DateTime.TryParse(match.Value, out var dt))
-                return dt;
+            if (string.IsNullOrWhiteSpace(text)) return null;
+
+            // Formats like "1-Sep-26", "01-Sep-2026", "Sep-26", "2026-09-01", "1/9/2026"
+            if (DateTime.TryParse(text, out var directDate))
+                return directDate;
+
+            var match = Regex.Match(text, @"(\d{1,2}[-/][A-Za-z]{3}[-/]\d{2,4})");
+            if (match.Success && DateTime.TryParse(match.Value, out var dtMonth))
+                return dtMonth;
+
+            var isoMatch = Regex.Match(text, @"(\d{4}[-/]\d{1,2}[-/]\d{1,2})");
+            if (isoMatch.Success && DateTime.TryParse(isoMatch.Value, out var dtIso))
+                return dtIso;
+
             return null;
         }
     }

@@ -191,8 +191,155 @@ namespace AlaaRep.Schedule.Core.Services
                 summary.TotalCostEarnedValue = Math.Round(targetActivities.Sum(a => a.EarnedCostToDate), 2);
             }
 
+            // Determine critical path flags for activities
+            IdentifyCriticalActivities(activities);
+
             // Calculate Lookahead Schedule
             summary.LookaheadActivities = CalculateLookahead(activities, summary.DataDate ?? DateTime.Today, lookaheadDays);
+
+            // Calculate Period Performance Summary (Last Period + Current Period)
+            summary.PeriodSummary = CalculatePeriodPerformanceSummary(activities, summary.MonthlySeries, summary.DataDate);
+
+            return summary;
+        }
+
+        public void IdentifyCriticalActivities(List<ActivityScheduleItem> activities)
+        {
+            foreach (var act in activities)
+            {
+                // In standard P6 / construction management, an activity is critical if:
+                // 1. It has negative variance (already delayed) or variance is 0 on the longest path.
+                // 2. Or it is actively driving the project forecast completion.
+                // Mark as critical if variance is negative (delayed) or zero with large weight/schedule impact
+                if (act.VarianceDays.HasValue && act.VarianceDays.Value < 0)
+                {
+                    act.IsCritical = true;
+                }
+                else if (act.ActivityName.Contains("Foundation", StringComparison.OrdinalIgnoreCase) ||
+                         act.ActivityName.Contains("Concrete", StringComparison.OrdinalIgnoreCase) ||
+                         act.ActivityName.Contains("Structural", StringComparison.OrdinalIgnoreCase) ||
+                         act.ActivityName.Contains("Mobilization", StringComparison.OrdinalIgnoreCase) ||
+                         (act.VarianceDays.HasValue && act.VarianceDays.Value == 0 && act.Status == ActivityStatus.InProgress))
+                {
+                    act.IsCritical = true;
+                }
+            }
+        }
+
+        public PeriodPerformanceSummary CalculatePeriodPerformanceSummary(
+            List<ActivityScheduleItem> activities,
+            List<PeriodicAggregatePoint> monthlySeries,
+            DateTime? dataDate)
+        {
+            var summary = new PeriodPerformanceSummary();
+            var targetActivities = activities.Where(a => !a.IsSummary).ToList();
+            if (!targetActivities.Any()) targetActivities = activities;
+
+            if (monthlySeries == null || !monthlySeries.Any())
+            {
+                return summary;
+            }
+
+            // Find last period (the period leading up to or matching the latest earned value)
+            int lastPeriodIndex = monthlySeries.FindLastIndex(m => m.PeriodicEarnedUnits > 0 || m.PeriodicEarnedCost > 0);
+            if (lastPeriodIndex < 0) lastPeriodIndex = 0;
+
+            int currentPeriodIndex = Math.Min(lastPeriodIndex + 1, monthlySeries.Count - 1);
+
+            var lastPeriodPoint = monthlySeries[lastPeriodIndex];
+            var currentPeriodPoint = monthlySeries[currentPeriodIndex];
+
+            summary.LastPeriodLabel = lastPeriodPoint.PeriodLabel;
+            summary.CurrentPeriodLabel = currentPeriodPoint.PeriodLabel;
+
+            summary.LastPeriodPlannedUnits = lastPeriodPoint.PeriodicPlannedUnits;
+            summary.LastPeriodEarnedUnits = lastPeriodPoint.PeriodicEarnedUnits;
+            summary.LastPeriodPlannedCost = lastPeriodPoint.PeriodicPlannedCost;
+            summary.LastPeriodEarnedCost = lastPeriodPoint.PeriodicEarnedCost;
+
+            summary.CurrentPeriodPlannedUnits = currentPeriodPoint.PeriodicPlannedUnits;
+            summary.CurrentPeriodPlannedCost = currentPeriodPoint.PeriodicPlannedCost;
+
+            // Populate Last Period Tasks
+            foreach (var act in targetActivities)
+            {
+                var periodMatch = act.PeriodValues.FirstOrDefault(p =>
+                    string.Equals(p.PeriodLabel, lastPeriodPoint.PeriodLabel, StringComparison.OrdinalIgnoreCase) ||
+                    (p.PeriodDate.HasValue && lastPeriodPoint.PeriodDate.HasValue && p.PeriodDate.Value.Month == lastPeriodPoint.PeriodDate.Value.Month && p.PeriodDate.Value.Year == lastPeriodPoint.PeriodDate.Value.Year));
+
+                if (periodMatch != null && (periodMatch.PlannedUnits > 0 || periodMatch.EarnedUnits > 0 || periodMatch.PlannedCost > 0 || periodMatch.EarnedCost > 0 || act.Status == ActivityStatus.InProgress || act.Status == ActivityStatus.Delayed))
+                {
+                    bool isDelayed = (act.FinishVarianceDays.HasValue && act.FinishVarianceDays.Value < 0) || act.Status == ActivityStatus.Delayed;
+                    string recommendation = isDelayed
+                        ? "Expedite resources; review slippage causes"
+                        : (act.Status == ActivityStatus.Completed ? "Completed on schedule" : "Progressing as planned");
+
+                    summary.Tasks.Add(new PeriodTaskItem
+                    {
+                        ActivityId = act.ActivityId,
+                        ActivityName = act.ActivityName,
+                        PeriodType = "LastPeriod",
+                        PeriodLabel = lastPeriodPoint.PeriodLabel,
+                        PlannedStartDate = act.PlannedStartDate,
+                        PlannedFinishDate = act.PlannedFinishDate,
+                        ForecastStartDate = act.ForecastStartDate,
+                        ForecastFinishDate = act.ForecastFinishDate,
+                        VarianceDays = act.FinishVarianceDays,
+                        IsCritical = act.IsCritical,
+                        PlannedUnits = periodMatch.PlannedUnits,
+                        EarnedUnits = periodMatch.EarnedUnits,
+                        PlannedCost = periodMatch.PlannedCost,
+                        EarnedCost = periodMatch.EarnedCost,
+                        CumulativePercent = act.PercentComplete,
+                        SchedulePercent = act.SchedulePercent ?? 0,
+                        Status = act.Status,
+                        ActionRecommendation = recommendation
+                    });
+                }
+            }
+
+            // Populate Current Period Tasks (What is scheduled in the coming period)
+            foreach (var act in targetActivities)
+            {
+                var periodMatch = act.PeriodValues.FirstOrDefault(p =>
+                    string.Equals(p.PeriodLabel, currentPeriodPoint.PeriodLabel, StringComparison.OrdinalIgnoreCase) ||
+                    (p.PeriodDate.HasValue && currentPeriodPoint.PeriodDate.HasValue && p.PeriodDate.Value.Month == currentPeriodPoint.PeriodDate.Value.Month && p.PeriodDate.Value.Year == currentPeriodPoint.PeriodDate.Value.Year));
+
+                if (periodMatch != null && (periodMatch.PlannedUnits > 0 || periodMatch.PlannedCost > 0 || act.Status == ActivityStatus.InProgress || act.Status == ActivityStatus.Delayed))
+                {
+                    bool isDelayed = (act.FinishVarianceDays.HasValue && act.FinishVarianceDays.Value < 0) || act.Status == ActivityStatus.Delayed;
+                    string recommendation = isDelayed
+                        ? "Critical attention: Delayed activity continuing into current period"
+                        : (act.IsCritical ? "Critical path task: Monitor daily start & progress" : "Upcoming milestone task");
+
+                    summary.Tasks.Add(new PeriodTaskItem
+                    {
+                        ActivityId = act.ActivityId,
+                        ActivityName = act.ActivityName,
+                        PeriodType = "CurrentPeriod",
+                        PeriodLabel = currentPeriodPoint.PeriodLabel,
+                        PlannedStartDate = act.PlannedStartDate,
+                        PlannedFinishDate = act.PlannedFinishDate,
+                        ForecastStartDate = act.ForecastStartDate,
+                        ForecastFinishDate = act.ForecastFinishDate,
+                        VarianceDays = act.FinishVarianceDays,
+                        IsCritical = act.IsCritical,
+                        PlannedUnits = periodMatch.PlannedUnits,
+                        EarnedUnits = periodMatch.EarnedUnits,
+                        PlannedCost = periodMatch.PlannedCost,
+                        EarnedCost = periodMatch.EarnedCost,
+                        CumulativePercent = act.PercentComplete,
+                        SchedulePercent = act.SchedulePercent ?? 0,
+                        Status = act.Status,
+                        ActionRecommendation = recommendation
+                    });
+                }
+            }
+
+            summary.LastPeriodActiveCount = summary.Tasks.Count(t => t.PeriodType == "LastPeriod");
+            summary.CurrentPeriodComingCount = summary.Tasks.Count(t => t.PeriodType == "CurrentPeriod");
+            summary.DelayedTasksCount = summary.Tasks.Count(t => t.IsDelayed);
+            summary.CriticalTasksCount = summary.Tasks.Count(t => t.IsCritical);
 
             return summary;
         }
@@ -261,7 +408,8 @@ namespace AlaaRep.Schedule.Core.Services
                         Status = act.Status,
                         LookaheadPhase = phase,
                         DaysUntilForecastStart = (int)(fStart - baseDate).TotalDays,
-                        DaysUntilForecastFinish = (int)(fFinish - baseDate).TotalDays
+                        DaysUntilForecastFinish = (int)(fFinish - baseDate).TotalDays,
+                        IsCritical = act.IsCritical
                     });
                 }
             }

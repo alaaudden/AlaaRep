@@ -3,6 +3,7 @@ let scheduleData = null;
 let sCurveChart = null;
 let currentMetricMode = 'units'; // 'units' or 'cost'
 let selectedLookaheadDays = 30;
+let currentPeriodFilter = 'ALL';
 
 document.addEventListener('DOMContentLoaded', () => {
   initEventListeners();
@@ -12,6 +13,27 @@ document.addEventListener('DOMContentLoaded', () => {
 function initEventListeners() {
   const fileInput = document.getElementById('excelFileInput');
   fileInput.addEventListener('change', handleFileUpload);
+
+  const btnToggleMatrixSCurve = document.getElementById('btnToggleMatrixSCurve');
+  if (btnToggleMatrixSCurve) {
+    btnToggleMatrixSCurve.addEventListener('click', toggleMatrixSCurve);
+  }
+
+  // Redraw matrix overlay on scroll and window resize
+  const scrollContainer = document.getElementById('matrixScrollContainer');
+  if (scrollContainer) {
+    scrollContainer.addEventListener('scroll', () => {
+      // Reposition canvas overlay transform based on scroll
+      const canvas = document.getElementById('matrixSCurveCanvas');
+      if (canvas) {
+        canvas.style.transform = `translate(${-scrollContainer.scrollLeft}px, ${-scrollContainer.scrollTop}px)`;
+      }
+    });
+  }
+
+  window.addEventListener('resize', () => {
+    drawMatrixSCurveOverlay();
+  });
 
   const btnDownloadSample = document.getElementById('btnDownloadSample');
   btnDownloadSample.addEventListener('click', () => {
@@ -56,6 +78,17 @@ function initEventListeners() {
   // Lookahead Export button
   const btnExportLookahead = document.getElementById('btnExportLookahead');
   btnExportLookahead.addEventListener('click', exportLookaheadToCsv);
+
+  // Period filter tabs
+  const tabBtns = document.querySelectorAll('.period-filter-tabs .tab-btn');
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentPeriodFilter = btn.getAttribute('data-filter');
+      renderPeriodSummaryTable();
+    });
+  });
 
   // Search and filter
   const searchInput = document.getElementById('searchInput');
@@ -181,8 +214,10 @@ function renderDashboard() {
   renderProjectHeader();
   renderKpis();
   renderSCurveChart();
+  renderPeriodSummarySection();
   renderLookaheadSection();
   renderMatrixTable();
+  setTimeout(() => drawMatrixSCurveOverlay(), 150);
 }
 
 function renderProjectHeader() {
@@ -388,6 +423,127 @@ function renderSCurveChart() {
   });
 }
 
+function renderPeriodSummarySection() {
+  if (!scheduleData || !scheduleData.periodSummary) return;
+
+  const ps = scheduleData.periodSummary;
+  const isUnits = currentMetricMode === 'units';
+
+  const lastPv = isUnits ? ps.lastPeriodPlannedUnits : ps.lastPeriodPlannedCost;
+  const lastEv = isUnits ? ps.lastPeriodEarnedUnits : ps.lastPeriodEarnedCost;
+  const lastSv = isUnits ? ps.lastPeriodUnitsVariance : ps.lastPeriodCostVariance;
+  const lastSpi = isUnits ? ps.lastPeriodUnitsSpi : ps.lastPeriodCostSpi;
+  const comingScope = isUnits ? ps.currentPeriodPlannedUnits : ps.currentPeriodPlannedCost;
+
+  const fmtVal = (v) => isUnits
+    ? (v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(1))
+    : '$' + v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  document.getElementById('lblPeriodEv').textContent = fmtVal(lastEv);
+  document.getElementById('lblPeriodPv').textContent = fmtVal(lastPv);
+  document.getElementById('lblPeriodSub').textContent = `Last Period (${ps.lastPeriodLabel || 'Previous Month'}) EV vs PV`;
+
+  const spiElem = document.getElementById('lblPeriodSpi');
+  spiElem.textContent = lastSpi.toFixed(2);
+  spiElem.style.color = lastSpi >= 1.0 ? 'var(--success)' : (lastSpi >= 0.85 ? '#d97706' : 'var(--danger)');
+
+  document.getElementById('lblPeriodSv').textContent = `SV: ${fmtVal(lastSv)} (${lastSv >= 0 ? '+' : ''}${isUnits ? 'units' : '$'})`;
+
+  document.getElementById('lblComingScope').textContent = fmtVal(comingScope);
+  document.getElementById('lblComingLabel').textContent = `Scheduled in ${ps.currentPeriodLabel || 'Current Month'}`;
+
+  document.getElementById('lblDelayedCount').textContent = ps.delayedTasksCount;
+  document.getElementById('lblCriticalCount').textContent = ps.criticalTasksCount;
+
+  // Update Tab Badges
+  const allTasks = ps.tasks || [];
+  document.getElementById('tabCountAll').textContent = allTasks.length;
+  document.getElementById('tabCountDelayed').textContent = allTasks.filter(t => t.isDelayed).length;
+  document.getElementById('tabCountCritical').textContent = allTasks.filter(t => t.isCritical).length;
+  document.getElementById('tabCountLast').textContent = allTasks.filter(t => t.periodType === 'LastPeriod').length;
+  document.getElementById('tabCountCurrent').textContent = allTasks.filter(t => t.periodType === 'CurrentPeriod').length;
+
+  document.getElementById('thPeriodPlanned').textContent = isUnits ? 'Period Planned (Units)' : 'Period Planned ($)';
+  document.getElementById('thPeriodEarned').textContent = isUnits ? 'Period Earned (Units)' : 'Period Earned ($)';
+
+  renderPeriodSummaryTable();
+}
+
+function renderPeriodSummaryTable() {
+  if (!scheduleData || !scheduleData.periodSummary) return;
+
+  const tbody = document.getElementById('periodSummaryTableBody');
+  tbody.innerHTML = '';
+
+  const allTasks = scheduleData.periodSummary.tasks || [];
+  const isUnits = currentMetricMode === 'units';
+
+  let filtered = allTasks;
+  if (currentPeriodFilter === 'DELAYED') {
+    filtered = allTasks.filter(t => t.isDelayed);
+  } else if (currentPeriodFilter === 'CRITICAL') {
+    filtered = allTasks.filter(t => t.isCritical);
+  } else if (currentPeriodFilter === 'LAST_PERIOD') {
+    filtered = allTasks.filter(t => t.periodType === 'LastPeriod');
+  } else if (currentPeriodFilter === 'CURRENT_PERIOD') {
+    filtered = allTasks.filter(t => t.periodType === 'CurrentPeriod');
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 2rem; color: #94a3b8;">No tasks matching filter "${currentPeriodFilter}".</td></tr>`;
+    return;
+  }
+
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+
+  filtered.forEach(task => {
+    const tr = document.createElement('tr');
+    if (task.isDelayed) tr.style.backgroundColor = '#fff5f5';
+
+    const pBadge = task.periodType === 'LastPeriod'
+      ? `<span class="period-badge-last">Last Period (${task.periodLabel})</span>`
+      : `<span class="period-badge-current">Current Period (${task.periodLabel})</span>`;
+
+    const critBadge = task.isCritical
+      ? `<span class="badge badge-critical">Critical Path</span>`
+      : `<span class="badge badge-standard">Standard</span>`;
+
+    const vClass = (task.varianceDays || 0) < 0 ? 'var-pill delayed' : ((task.varianceDays || 0) > 0 ? 'var-pill ahead' : 'var-pill ontrack');
+    const vText = task.varianceDays !== null && task.varianceDays !== undefined
+      ? `${task.varianceDays}d`
+      : '-';
+
+    const pUnits = isUnits ? task.plannedUnits : task.plannedCost;
+    const eUnits = isUnits ? task.earnedUnits : task.earnedCost;
+
+    const fmtNum = (n) => isUnits
+      ? (n > 0 ? (n >= 1000 ? Math.round(n).toLocaleString() : n.toFixed(1)) : '-')
+      : (n > 0 ? '$' + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '-');
+
+    tr.innerHTML = `
+      <td>${pBadge}</td>
+      <td><strong>${task.activityId}</strong></td>
+      <td class="cell-activity-name">${task.activityName}</td>
+      <td style="text-align: center;">${critBadge}</td>
+      <td style="font-size: 0.76rem;">${fmtDate(task.forecastStartDate)} &rarr; ${fmtDate(task.forecastFinishDate)}</td>
+      <td style="text-align: center;"><span class="${vClass}">${vText}</span></td>
+      <td style="text-align: right; font-weight: 600;">${fmtNum(pUnits)}</td>
+      <td style="text-align: right; font-weight: 600; color: #dc2626;">${fmtNum(eUnits)}</td>
+      <td>
+        <div class="progress-bar-container">
+          <div class="progress-track">
+            <div class="progress-fill ${task.cumulativePercent >= 100 ? 'fill-complete' : (task.isDelayed ? 'fill-delayed' : '')}" style="width: ${Math.min(100, task.cumulativePercent)}%"></div>
+          </div>
+          <span style="font-size: 0.75rem; font-weight: 600; min-width: 38px;">${task.cumulativePercent.toFixed(1)}%</span>
+        </div>
+      </td>
+      <td>${getStatusBadge(task.status)}</td>
+      <td style="font-size: 0.76rem; color: #475569;">${task.actionRecommendation || '-'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
 function renderLookaheadSection() {
   const items = scheduleData.lookaheadActivities || [];
   const isUnits = currentMetricMode === 'units';
@@ -544,7 +700,31 @@ function renderMatrixTable() {
       periodMap.set(p.periodLabel, p);
     });
 
-    periods.forEach(pHeader => {
+    // Determine continuous span indices for planned and earned values
+    let firstPlannedIdx = -1;
+    let lastPlannedIdx = -1;
+    let firstEarnedIdx = -1;
+    let lastEarnedIdx = -1;
+
+    periods.forEach((pHeader, idx) => {
+      const pItem = periodMap.get(pHeader);
+      if (pItem) {
+        const pVal = isUnits ? pItem.plannedUnits : pItem.plannedCost;
+        const eVal = isUnits ? pItem.earnedUnits : pItem.earnedCost;
+
+        if (pVal > 0) {
+          if (firstPlannedIdx === -1) firstPlannedIdx = idx;
+          lastPlannedIdx = idx;
+        }
+
+        if (eVal > 0) {
+          if (firstEarnedIdx === -1) firstEarnedIdx = idx;
+          lastEarnedIdx = idx;
+        }
+      }
+    });
+
+    periods.forEach((pHeader, idx) => {
       const pItem = periodMap.get(pHeader);
       let plannedVal = 0;
       let earnedVal = 0;
@@ -554,11 +734,43 @@ function renderMatrixTable() {
         earnedVal = isUnits ? pItem.earnedUnits : pItem.earnedCost;
       }
 
-      if (plannedVal > 0 || earnedVal > 0) {
-        const displayVal = earnedVal > 0 ? earnedVal : plannedVal;
-        const barClass = earnedVal > 0 ? 'cell-matrix-bar bar-earned' : 'cell-matrix-bar';
-        const formatted = displayVal >= 1000 ? Math.round(displayVal).toLocaleString() : displayVal.toFixed(displayVal % 1 === 0 ? 0 : 1);
-        rowHtml += `<td class="cell-matrix-val"><span class="${barClass}" title="Planned: ${plannedVal}, Earned: ${earnedVal}">${formatted}</span></td>`;
+      const hasPlanned = idx >= firstPlannedIdx && idx <= lastPlannedIdx && firstPlannedIdx !== -1;
+      const hasEarned = idx >= firstEarnedIdx && idx <= lastEarnedIdx && firstEarnedIdx !== -1;
+
+      if (hasPlanned || hasEarned) {
+        let earnedHtml = '<div class="matrix-empty-track"></div>';
+        if (hasEarned) {
+          const isStart = idx === firstEarnedIdx;
+          const isEnd = idx === lastEarnedIdx;
+          let edgeClass = '';
+          if (isStart && isEnd) edgeClass = 'is-single';
+          else if (isStart) edgeClass = 'is-start';
+          else if (isEnd) edgeClass = 'is-end';
+
+          const eText = earnedVal > 0 ? (earnedVal >= 1000 ? Math.round(earnedVal).toLocaleString() : earnedVal.toFixed(earnedVal % 1 === 0 ? 0 : 1)) : '';
+          earnedHtml = `<div class="matrix-bar-track matrix-bar-earned ${edgeClass}" title="Earned: ${earnedVal.toLocaleString()}"><span class="bar-val-text">${eText}</span></div>`;
+        }
+
+        let plannedHtml = '<div class="matrix-empty-track"></div>';
+        if (hasPlanned) {
+          const isStart = idx === firstPlannedIdx;
+          const isEnd = idx === lastPlannedIdx;
+          let edgeClass = '';
+          if (isStart && isEnd) edgeClass = 'is-single';
+          else if (isStart) edgeClass = 'is-start';
+          else if (isEnd) edgeClass = 'is-end';
+
+          const pText = plannedVal > 0 ? (plannedVal >= 1000 ? Math.round(plannedVal).toLocaleString() : plannedVal.toFixed(plannedVal % 1 === 0 ? 0 : 1)) : '';
+          plannedHtml = `<div class="matrix-bar-track matrix-bar-planned ${edgeClass}" title="Planned: ${plannedVal.toLocaleString()}"><span class="bar-val-text">${pText}</span></div>`;
+        }
+
+        rowHtml += `
+          <td class="cell-matrix-val">
+            <div class="matrix-bar-track-wrapper">
+              ${earnedHtml}
+              ${plannedHtml}
+            </div>
+          </td>`;
       } else {
         rowHtml += `<td class="cell-matrix-val"></td>`;
       }
@@ -588,5 +800,147 @@ function getStatusText(status) {
     case 1: return 'InProgress';
     case 3: return 'Delayed';
     default: return 'NotStarted';
+  }
+}
+
+// Matrix S-Curve Overlay Functionality
+let showMatrixSCurve = true;
+
+function toggleMatrixSCurve() {
+  showMatrixSCurve = !showMatrixSCurve;
+  const txt = document.getElementById('txtToggleMatrixSCurve');
+  if (txt) {
+    txt.textContent = showMatrixSCurve ? 'Hide S-Curve on Matrix' : 'Show S-Curve on Matrix';
+  }
+  drawMatrixSCurveOverlay();
+}
+
+function drawMatrixSCurveOverlay() {
+  const canvas = document.getElementById('matrixSCurveCanvas');
+  const scrollContainer = document.getElementById('matrixScrollContainer');
+  const table = document.getElementById('matrixTable');
+  if (!canvas || !scrollContainer || !table) return;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!showMatrixSCurve || !scheduleData || !scheduleData.monthlySeries || scheduleData.monthlySeries.length === 0) {
+    return;
+  }
+
+  // Adjust canvas size to match the scrollable table area
+  canvas.width = table.scrollWidth;
+  canvas.height = table.scrollHeight;
+  canvas.style.width = table.scrollWidth + 'px';
+  canvas.style.height = table.scrollHeight + 'px';
+
+  // Find column header th positions for timeline
+  const thHeaders = Array.from(table.querySelectorAll('thead th.th-timeline'));
+  if (thHeaders.length === 0) return;
+
+  const isUnits = currentMetricMode === 'units';
+  const series = scheduleData.monthlySeries;
+  const bac = isUnits ? (scheduleData.totalUnitsBudgetAtCompletion || 1) : (scheduleData.totalCostBudgetAtCompletion || 1);
+
+  const headerRow = table.querySelector('thead tr');
+  const tbodyRows = table.querySelectorAll('tbody tr');
+  if (tbodyRows.length === 0) return;
+
+  const headerBottom = headerRow.offsetTop + headerRow.offsetHeight;
+  const tableBottom = table.scrollHeight - 30;
+  const availableHeight = Math.max(100, tableBottom - headerBottom);
+
+  const plannedCoords = [];
+  const earnedCoords = [];
+
+  series.forEach((pt, idx) => {
+    if (idx < thHeaders.length) {
+      const th = thHeaders[idx];
+      const x = th.offsetLeft + (th.offsetWidth / 2);
+
+      const cumPv = isUnits ? pt.cumulativePlannedUnits : pt.cumulativePlannedCost;
+      const cumEv = isUnits ? pt.cumulativeEarnedUnits : pt.cumulativeEarnedCost;
+
+      const pvRatio = Math.min(1.0, Math.max(0, cumPv / bac));
+      const evRatio = Math.min(1.0, Math.max(0, cumEv / bac));
+
+      // 0% at tableBottom, 100% near headerBottom
+      const pvY = tableBottom - (pvRatio * availableHeight);
+      plannedCoords.push({ x, y: pvY, label: pt.periodLabel, val: cumPv, pct: (pvRatio * 100).toFixed(1) });
+
+      if (cumEv > 0 || idx <= 1) { // Up to data date
+        const evY = tableBottom - (evRatio * availableHeight);
+        earnedCoords.push({ x, y: evY, label: pt.periodLabel, val: cumEv, pct: (evRatio * 100).toFixed(1) });
+      }
+    }
+  });
+
+  // Draw Planned S-Curve line (Blue, as in the user's attachment)
+  if (plannedCoords.length > 1) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.moveTo(plannedCoords[0].x, plannedCoords[0].y);
+    for (let i = 1; i < plannedCoords.length; i++) {
+      const xc = (plannedCoords[i - 1].x + plannedCoords[i].x) / 2;
+      const yc = (plannedCoords[i - 1].y + plannedCoords[i].y) / 2;
+      ctx.quadraticCurveTo(plannedCoords[i - 1].x, plannedCoords[i - 1].y, xc, yc);
+    }
+    const last = plannedCoords[plannedCoords.length - 1];
+    ctx.lineTo(last.x, last.y);
+    ctx.stroke();
+
+    // Planned S curve label directly along the curve within visible chart area
+    const midIdx = Math.min(plannedCoords.length - 1, Math.floor(plannedCoords.length * 0.45));
+    if (plannedCoords[midIdx]) {
+      ctx.save();
+      ctx.translate(plannedCoords[midIdx].x + 10, plannedCoords[midIdx].y - 12);
+      ctx.rotate(-0.35);
+      ctx.fillStyle = '#0369a1';
+      ctx.font = 'bold 12px "Segoe UI", sans-serif';
+      ctx.fillText(isUnits ? 'Labor unit - Planned S curve' : 'Cost ($) - Planned S curve', 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // Draw Earned S-Curve line (Red, matching user's attachment)
+  if (earnedCoords.length > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.moveTo(earnedCoords[0].x, earnedCoords[0].y);
+    for (let i = 1; i < earnedCoords.length; i++) {
+      ctx.lineTo(earnedCoords[i].x, earnedCoords[i].y);
+    }
+    ctx.stroke();
+
+    // Points on Earned curve
+    earnedCoords.forEach(pt => {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#dc2626';
+      ctx.fill();
+    });
+
+    // Label for Earned S curve
+    const lastE = earnedCoords[earnedCoords.length - 1];
+    ctx.save();
+    ctx.translate(lastE.x - 70, lastE.y + 24);
+    ctx.rotate(-0.2);
+    ctx.fillStyle = '#dc2626';
+    ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillText(isUnits ? 'Labor unit - Earned S curve' : 'Cost ($) - Earned S curve', 0, 0);
+    ctx.restore();
+
+    ctx.restore();
   }
 }

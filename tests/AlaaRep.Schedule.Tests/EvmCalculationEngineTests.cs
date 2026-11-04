@@ -151,6 +151,64 @@ namespace AlaaRep.Schedule.Tests
         }
 
         [Fact]
+        public void CalculatePeriodPerformanceSummary_IdentifiesLastPeriodAndCurrentPeriodTasks()
+        {
+            var engine = new EvmCalculationEngine();
+
+            var act1 = new ActivityScheduleItem
+            {
+                ActivityId = "A-MOB",
+                ActivityName = "Mobilization",
+                VarianceDays = -15, // Delayed
+                BudgetAtCompletionUnits = 1000,
+                EarnedUnitsToDate = 800,
+                PeriodValues = new List<PeriodicValueItem>
+                {
+                    new() { PeriodLabel = "1-Sep-26", PeriodDate = new DateTime(2026, 9, 1), PlannedUnits = 500, EarnedUnits = 400 },
+                    new() { PeriodLabel = "1-Oct-26", PeriodDate = new DateTime(2026, 10, 1), PlannedUnits = 500, EarnedUnits = 0 }
+                }
+            };
+
+            var act2 = new ActivityScheduleItem
+            {
+                ActivityId = "A-FOUND",
+                ActivityName = "Foundation Concrete",
+                VarianceDays = 0,
+                BudgetAtCompletionUnits = 2000,
+                EarnedUnitsToDate = 0,
+                PeriodValues = new List<PeriodicValueItem>
+                {
+                    new() { PeriodLabel = "1-Sep-26", PeriodDate = new DateTime(2026, 9, 1), PlannedUnits = 0, EarnedUnits = 0 },
+                    new() { PeriodLabel = "1-Oct-26", PeriodDate = new DateTime(2026, 10, 1), PlannedUnits = 800, EarnedUnits = 0 }
+                }
+            };
+
+            var summary = engine.CalculateSummary(new List<ActivityScheduleItem> { act1, act2 }, "Period Test");
+
+            Assert.NotNull(summary.PeriodSummary);
+            Assert.Equal("1-Sep-26", summary.PeriodSummary.LastPeriodLabel);
+            Assert.Equal("1-Oct-26", summary.PeriodSummary.CurrentPeriodLabel);
+
+            // Last period aggregates
+            Assert.Equal(500, summary.PeriodSummary.LastPeriodPlannedUnits);
+            Assert.Equal(400, summary.PeriodSummary.LastPeriodEarnedUnits);
+            Assert.Equal(-100, summary.PeriodSummary.LastPeriodUnitsVariance);
+            Assert.Equal(0.8, summary.PeriodSummary.LastPeriodUnitsSpi);
+
+            // Current period aggregates
+            Assert.Equal(1300, summary.PeriodSummary.CurrentPeriodPlannedUnits);
+
+            // Tasks validation
+            Assert.NotEmpty(summary.PeriodSummary.Tasks);
+            var delayedTasks = summary.PeriodSummary.Tasks.FindAll(t => t.IsDelayed);
+            Assert.NotEmpty(delayedTasks);
+            Assert.Contains(delayedTasks, t => t.ActivityId == "A-MOB");
+
+            var criticalTasks = summary.PeriodSummary.Tasks.FindAll(t => t.IsCritical);
+            Assert.NotEmpty(criticalTasks);
+        }
+
+        [Fact]
         public void CalculateSummary_EmptyActivities_ReturnsSafeDefaults()
         {
             var engine = new EvmCalculationEngine();

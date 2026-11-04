@@ -139,6 +139,79 @@
       </div>
     </section>
 
+    <!-- Period Performance & Lookahead Summary Section (What happened last period combined with coming tasks in current period) -->
+    <section class="period-summary-section">
+      <div class="period-summary-header">
+        <div class="period-summary-title-area">
+          <div class="icon-tag-period">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="card-title">Period Performance & Upcoming Tasks Summary</h3>
+            <span class="card-subtitle">Summary of what happened in the last period combined with upcoming tasks in the current period (highlighting delayed & critical tasks)</span>
+          </div>
+        </div>
+
+        <div class="period-filter-tabs">
+          <button class="tab-btn active" data-filter="ALL">All Items (<span id="tabCountAll">0</span>)</button>
+          <button class="tab-btn" data-filter="DELAYED">Delayed Tasks (<span id="tabCountDelayed">0</span>)</button>
+          <button class="tab-btn" data-filter="CRITICAL">Critical Path (<span id="tabCountCritical">0</span>)</button>
+          <button class="tab-btn" data-filter="LAST_PERIOD">Last Period Active (<span id="tabCountLast">0</span>)</button>
+          <button class="tab-btn" data-filter="CURRENT_PERIOD">Current Period Coming (<span id="tabCountCurrent">0</span>)</button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards for Periods -->
+      <div class="period-kpis">
+        <div class="period-kpi-item highlight-info">
+          <span class="period-kpi-lbl">Last Period Performance</span>
+          <div class="period-kpi-val"><span id="lblPeriodEv">0</span> / <span id="lblPeriodPv">0</span></div>
+          <span class="period-kpi-sub" id="lblPeriodSub">Last Period EV vs PV</span>
+        </div>
+        <div class="period-kpi-item">
+          <span class="period-kpi-lbl">Last Period Variance / SPI</span>
+          <div class="period-kpi-val" id="lblPeriodSpi">1.00</div>
+          <span class="period-kpi-sub" id="lblPeriodSv">SV: 0</span>
+        </div>
+        <div class="period-kpi-item highlight-warning">
+          <span class="period-kpi-lbl">Current Period Planned Scope</span>
+          <div class="period-kpi-val" id="lblComingScope">0</div>
+          <span class="period-kpi-sub" id="lblComingLabel">Upcoming Work</span>
+        </div>
+        <div class="period-kpi-item highlight-danger">
+          <span class="period-kpi-lbl">Delayed & Critical Tasks</span>
+          <div class="period-kpi-val"><span id="lblDelayedCount">0</span> delayed &bull; <span id="lblCriticalCount">0</span> crit</div>
+          <span class="period-kpi-sub">Tasks requiring active intervention</span>
+        </div>
+      </div>
+
+      <!-- Combined Table -->
+      <div class="table-responsive">
+        <table class="data-table" id="periodSummaryTable">
+          <thead>
+            <tr>
+              <th>Period Scope</th>
+              <th>Activity ID</th>
+              <th>Activity Name</th>
+              <th>Criticality</th>
+              <th>Forecast Dates</th>
+              <th>Var (days)</th>
+              <th id="thPeriodPlanned">Period Planned</th>
+              <th id="thPeriodEarned">Period Earned</th>
+              <th>Progress</th>
+              <th>Status</th>
+              <th>Recommendation / Action</th>
+            </tr>
+          </thead>
+          <tbody id="periodSummaryTableBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Lookahead Schedule Section -->
     <section class="lookahead-section">
       <div class="lookahead-header">
@@ -229,7 +302,18 @@
       <div class="table-toolbar">
         <div>
           <h3 class="card-title">Schedule Distribution & Progress Matrix</h3>
-          <span class="card-subtitle">Detailed spreadsheet view with periodic distribution and data-date tracking</span>
+          <span class="card-subtitle">Continuous Planned baseline bar crossing months with Earned Value actual bar above it</span>
+        </div>
+        <div class="matrix-legend-indicators">
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch swatch-earned"></span> Earned Value (Actual)</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch swatch-planned"></span> Planned Value (Continuous Baseline)</span>
+          <button id="btnToggleMatrixSCurve" class="btn btn-sm btn-secondary scurve-toggle-btn" title="Toggle S-Curve Overlay over Schedule Grid">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 3v18h18"/>
+              <path d="M19 9l-5 5-4-4-3 3"/>
+            </svg>
+            <span id="txtToggleMatrixSCurve">Hide S-Curve on Matrix</span>
+          </button>
         </div>
         <div class="toolbar-controls">
           <input type="text" id="searchInput" placeholder="Search Activity ID or Name..." class="search-input">
@@ -243,15 +327,18 @@
         </div>
       </div>
 
-      <div class="table-responsive matrix-container">
-        <table class="data-table matrix-table" id="matrixTable">
-          <thead id="matrixTableHead">
-            <!-- Populated dynamically with ID, Name, Var, Sched %, Perf % and Timeline Date columns -->
-          </thead>
-          <tbody id="matrixTableBody">
-            <!-- Populated via JavaScript -->
-          </tbody>
-        </table>
+      <div class="matrix-wrapper-relative">
+        <canvas id="matrixSCurveCanvas" class="matrix-scurve-canvas"></canvas>
+        <div class="table-responsive matrix-container" id="matrixScrollContainer">
+          <table class="data-table matrix-table" id="matrixTable">
+            <thead id="matrixTableHead">
+              <!-- Populated dynamically with ID, Name, Var, Sched %, Perf % and Timeline Date columns -->
+            </thead>
+            <tbody id="matrixTableBody">
+              <!-- Populated via JavaScript -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>

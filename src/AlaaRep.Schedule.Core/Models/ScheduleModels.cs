@@ -20,6 +20,7 @@ namespace AlaaRep.Schedule.Core.Models
         public int? VarianceDays { get; set; } // Schedule variance in days (Planned Finish - Forecast Finish)
         public double? SchedulePercent { get; set; } // Planned %
         public double? PerformancePercent { get; set; } // Earned/Actual %
+        public bool IsCritical { get; set; } = false; // Critical Path activity (Total Float <= 0 or critical variance)
 
         // Cost-wise metrics
         public double BudgetAtCompletionCost { get; set; } // BAC Cost ($)
@@ -217,6 +218,63 @@ namespace AlaaRep.Schedule.Core.Models
         public int DaysUntilForecastStart { get; set; }
         public int DaysUntilForecastFinish { get; set; }
         public bool IsDelayed => VarianceDays.HasValue && VarianceDays.Value < 0;
+        public bool IsCritical { get; set; }
+    }
+
+    public class PeriodTaskItem
+    {
+        public string ActivityId { get; set; } = string.Empty;
+        public string ActivityName { get; set; } = string.Empty;
+        public string PeriodType { get; set; } = "LastPeriod"; // "LastPeriod" or "CurrentPeriod"
+        public string PeriodLabel { get; set; } = string.Empty;
+        public DateTime? PlannedStartDate { get; set; }
+        public DateTime? PlannedFinishDate { get; set; }
+        public DateTime? ForecastStartDate { get; set; }
+        public DateTime? ForecastFinishDate { get; set; }
+        public int? VarianceDays { get; set; }
+        public bool IsDelayed => (VarianceDays.HasValue && VarianceDays.Value < 0) || Status == ActivityStatus.Delayed;
+        public bool IsCritical { get; set; }
+        public double PlannedUnits { get; set; }
+        public double EarnedUnits { get; set; }
+        public double PlannedCost { get; set; }
+        public double EarnedCost { get; set; }
+        public double CumulativePercent { get; set; }
+        public double SchedulePercent { get; set; }
+        public ActivityStatus Status { get; set; }
+        public string ActionRecommendation { get; set; } = string.Empty;
+    }
+
+    public class PeriodPerformanceSummary
+    {
+        public string LastPeriodLabel { get; set; } = string.Empty;
+        public string CurrentPeriodLabel { get; set; } = string.Empty;
+
+        // Last Period Accomplishment Aggregates
+        public double LastPeriodPlannedUnits { get; set; }
+        public double LastPeriodEarnedUnits { get; set; }
+        public double LastPeriodUnitsVariance => LastPeriodEarnedUnits - LastPeriodPlannedUnits;
+        public double LastPeriodUnitsSpi => LastPeriodPlannedUnits > 0
+            ? Math.Round(LastPeriodEarnedUnits / LastPeriodPlannedUnits, 3)
+            : 1.0;
+
+        public double LastPeriodPlannedCost { get; set; }
+        public double LastPeriodEarnedCost { get; set; }
+        public double LastPeriodCostVariance => LastPeriodEarnedCost - LastPeriodPlannedCost;
+        public double LastPeriodCostSpi => LastPeriodPlannedCost > 0
+            ? Math.Round(LastPeriodEarnedCost / LastPeriodPlannedCost, 3)
+            : 1.0;
+
+        // Current Period Forecast Aggregates
+        public double CurrentPeriodPlannedUnits { get; set; }
+        public double CurrentPeriodPlannedCost { get; set; }
+
+        public int DelayedTasksCount { get; set; }
+        public int CriticalTasksCount { get; set; }
+        public int LastPeriodActiveCount { get; set; }
+        public int CurrentPeriodComingCount { get; set; }
+
+        // Combined Tasks List
+        public List<PeriodTaskItem> Tasks { get; set; } = new();
     }
 
     public class ScheduleProjectSummary
@@ -303,5 +361,8 @@ namespace AlaaRep.Schedule.Core.Models
         // Activities and Lookaheads
         public List<ActivityScheduleItem> Activities { get; set; } = new();
         public List<LookaheadScheduleItem> LookaheadActivities { get; set; } = new();
+
+        // Period Summary: What happened last period combined with coming tasks in current period
+        public PeriodPerformanceSummary PeriodSummary { get; set; } = new();
     }
 }

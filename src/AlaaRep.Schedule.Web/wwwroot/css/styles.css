@@ -577,7 +577,8 @@ body {
 
 .matrix-container {
   max-height: 600px;
-  overflow-y: auto;
+  overflow: auto;
+  position: relative;
 }
 
 .data-table {
@@ -605,6 +606,28 @@ body {
   font-weight: 600;
   color: #334155;
   border-bottom: 2px solid #cbd5e1;
+}
+
+/* S-Curve Overlay on Matrix Table */
+.matrix-wrapper-relative {
+  position: relative;
+  width: 100%;
+}
+
+.matrix-scurve-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.scurve-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
 }
 
 /* Headers matching user image style */
@@ -648,27 +671,139 @@ body {
 .cell-indent-3 { padding-left: 2.75rem !important; }
 .cell-indent-4 { padding-left: 3.5rem !important; }
 
-/* Matrix timeline cells with bar styling */
+/* Matrix Legend Indicators */
+.matrix-legend-indicators {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.matrix-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.matrix-legend-swatch {
+  width: 18px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.matrix-legend-swatch.swatch-earned {
+  background: linear-gradient(180deg, #ef4444, #dc2626);
+  border: 1px solid #b91c1c;
+}
+
+.matrix-legend-swatch.swatch-planned {
+  background: #bae6fd;
+  border: 1px solid #38bdf8;
+}
+
+/* Matrix timeline cells with continuous bar styling */
 .cell-matrix-val {
-  text-align: right;
-  font-size: 0.75rem;
+  padding: 0 !important;
+  vertical-align: middle;
+  min-width: 82px;
+  max-width: 95px;
+  height: 48px;
+  position: relative;
+  border-right: 1px solid rgba(226, 232, 240, 0.4);
+}
+
+.matrix-bar-track-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 4px 0;
+  gap: 2px;
+}
+
+/* Continuous Horizontal Bar Tracks */
+.matrix-bar-track {
+  width: 100%;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   position: relative;
 }
 
-.cell-matrix-bar {
-  background-color: var(--bar-blue);
-  color: #0369a1;
-  border: 1px solid var(--bar-border-blue);
-  border-radius: 3px;
-  padding: 1px 4px;
-  display: block;
-  font-weight: 600;
+/* Top Track: Earned Value Bar */
+.matrix-bar-earned {
+  background: linear-gradient(180deg, #f87171, #ef4444);
+  color: #ffffff;
+  border-top: 1px solid #dc2626;
+  border-bottom: 1px solid #dc2626;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
 }
 
-.cell-matrix-bar.bar-earned {
-  background-color: #fecaca;
-  color: #991b1b;
-  border-color: #f87171;
+/* Bottom Track: Planned Value Bar */
+.matrix-bar-planned {
+  background-color: var(--bar-blue);
+  color: #0369a1;
+  border-top: 1px solid var(--bar-border-blue);
+  border-bottom: 1px solid var(--bar-border-blue);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Continuous border and seamless connection */
+.matrix-bar-track.is-start {
+  border-left: 2px solid;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+  margin-left: 2px;
+  width: calc(100% - 2px);
+}
+
+.matrix-bar-track.is-end {
+  border-right: 2px solid;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  margin-right: 2px;
+  width: calc(100% - 2px);
+}
+
+.matrix-bar-track.is-single {
+  border-left: 2px solid;
+  border-right: 2px solid;
+  border-radius: 4px;
+  margin: 0 2px;
+  width: calc(100% - 4px);
+}
+
+.matrix-bar-earned.is-start,
+.matrix-bar-earned.is-end,
+.matrix-bar-earned.is-single {
+  border-color: #dc2626;
+}
+
+.matrix-bar-planned.is-start,
+.matrix-bar-planned.is-end,
+.matrix-bar-planned.is-single {
+  border-color: var(--bar-border-blue);
+}
+
+.bar-val-text {
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.matrix-empty-track {
+  visibility: hidden;
+  height: 16px;
 }
 
 .cell-data-date-line {
@@ -688,6 +823,146 @@ body {
 .badge-in-progress { background-color: #e0f2fe; color: #075985; }
 .badge-delayed { background-color: #fee2e2; color: #991b1b; }
 .badge-not-started { background-color: #f3f4f6; color: #4b5563; }
+.badge-critical { background-color: #fef2f2; color: #b91c1c; border: 1px solid #f87171; font-weight: 700; }
+.badge-standard { background-color: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; }
+
+/* Period Performance Summary Section */
+.period-summary-section {
+  background-color: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.period-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.period-summary-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icon-tag-period {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+}
+
+.period-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+.period-kpi-item {
+  background-color: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.period-kpi-lbl {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.period-kpi-val {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 0.15rem;
+}
+
+.period-kpi-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.period-kpi-item.highlight-danger {
+  border-left: 4px solid var(--danger);
+  background-color: #fef2f2;
+}
+
+.period-kpi-item.highlight-danger .period-kpi-val { color: var(--danger); }
+
+.period-kpi-item.highlight-warning {
+  border-left: 4px solid #f59e0b;
+  background-color: #fffbeb;
+}
+
+.period-kpi-item.highlight-warning .period-kpi-val { color: #d97706; }
+
+.period-kpi-item.highlight-info {
+  border-left: 4px solid var(--primary);
+  background-color: #f0f9ff;
+}
+
+.period-kpi-item.highlight-info .period-kpi-val { color: var(--primary); }
+
+.period-filter-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background-color: #f1f5f9;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.tab-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.period-badge-last {
+  background-color: #dbeafe;
+  color: #1e40af;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.period-badge-current {
+  background-color: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
 
 /* Lookahead Phase Badges */
 .phase-tag {

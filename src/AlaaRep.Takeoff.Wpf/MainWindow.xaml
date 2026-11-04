@@ -108,7 +108,8 @@
             <!-- Center Drawing Viewport -->
             <Border Grid.Column="0" Background="#0A0F1D" ClipToBounds="True" Focusable="True">
                 <Grid x:Name="ViewportGrid"
-                      MouseDown="Viewport_MouseDown"
+                      Background="Transparent"
+                      PreviewMouseDown="Viewport_MouseDown"
                       MouseMove="Viewport_MouseMove"
                       MouseUp="Viewport_MouseUp"
                       MouseWheel="Viewport_MouseWheel">

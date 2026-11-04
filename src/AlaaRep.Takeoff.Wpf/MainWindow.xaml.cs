@@ -30,13 +30,19 @@ public partial class MainWindow : Window
     private bool _isPanning;
     private System.Windows.Point _panStart;
 
+    // Interactive Object Moving & Vertex Dragging
+    private bool _isDraggingObject;
+    private int _dragVertexIndex = -1;
+    private Point2D? _dragStartDrawPt;
+
+    // Clipboard for Copy / Paste
+    private TakeoffObject? _clipboardObject;
+
     // In-progress drawing points (drawing-space coordinates)
     private readonly List<Point2D> _drawingPoints = new();
     private readonly List<Point2D> _calibrationPoints = new();
     private System.Windows.Point _currentMousePos;
     private SnapResult _currentSnap = new();
-    private DateTime _lastClickTime = DateTime.MinValue;
-    private Point2D? _lastClickPos;
 
     // Observable collections for UI bindings
     public ObservableCollection<BimKeyValue> BimPropertiesList { get; } = new();
@@ -259,10 +265,35 @@ public partial class MainWindow : Window
             DrawCalibrationLine();
         }
 
+        // Draw Interactive Vertex Handles for Selected Object
+        if (_selectedObject != null && _selectedObject.GeometryPoints.Count > 0)
+        {
+            DrawSelectionHandles(_selectedObject);
+        }
+
         // Draw Snapping Glyph (Orange square for Endpoint, Green triangle for Midpoint, Blue hourglass for Nearest)
         if (_currentSnap != null && _currentSnap.DidSnap)
         {
             DrawSnapGlyph(_currentSnap);
+        }
+    }
+
+    private void DrawSelectionHandles(TakeoffObject obj)
+    {
+        for (int i = 0; i < obj.GeometryPoints.Count; i++)
+        {
+            var p = obj.GeometryPoints[i];
+            var handle = new Rectangle
+            {
+                Width = 10,
+                Height = 10,
+                Fill = Brushes.White,
+                Stroke = new SolidColorBrush(Color.FromRgb(37, 99, 235)), // Blue
+                StrokeThickness = 2
+            };
+            Canvas.SetLeft(handle, p.X - 5);
+            Canvas.SetTop(handle, p.Y - 5);
+            PreviewCanvas.Children.Add(handle);
         }
     }
 
@@ -541,13 +572,8 @@ public partial class MainWindow : Window
 
         if (e.LeftButton == MouseButtonState.Pressed)
         {
-            var now = DateTime.UtcNow;
-            bool isDblClick = (e.ClickCount >= 2) ||
-                              ((now - _lastClickTime).TotalMilliseconds < 450 &&
-                               _lastClickPos != null && _lastClickPos.DistanceTo(drawPt) < 15.0);
-
-            _lastClickTime = now;
-            _lastClickPos = drawPt;
+            // Reliable double-click detection without rejecting distinct second points
+            bool isDblClick = (e.ClickCount >= 2);
 
             if (isDblClick && (_currentTool == "Length" || _currentTool == "Area" || _currentTool == "Zone"))
             {
@@ -558,7 +584,40 @@ public partial class MainWindow : Window
             switch (_currentTool)
             {
                 case "Select":
+                    // Check if clicked an existing handle of the selected object for vertex editing
+                    if (_selectedObject != null)
+                    {
+                        double handleRadius = 12.0 / CanvasScale.ScaleX;
+                        int hitIdx = -1;
+                        for (int i = 0; i < _selectedObject.GeometryPoints.Count; i++)
+                        {
+                            if (_selectedObject.GeometryPoints[i].DistanceTo(drawPt) <= handleRadius)
+                            {
+                                hitIdx = i;
+                                break;
+                            }
+                        }
+
+                        if (hitIdx >= 0)
+                        {
+                            _isDraggingObject = true;
+                            _dragVertexIndex = hitIdx;
+                            _dragStartDrawPt = drawPt;
+                            ViewportGrid.CaptureMouse();
+                            return;
+                        }
+                    }
+
                     PickObjectOrZone(drawPt);
+
+                    // If an object is selected and user clicked on it, prepare to move it
+                    if (_selectedObject != null)
+                    {
+                        _isDraggingObject = true;
+                        _dragVertexIndex = -1; // -1 means moving whole object
+                        _dragStartDrawPt = drawPt;
+                        ViewportGrid.CaptureMouse();
+                    }
                     break;
 
                 case "Count":
@@ -600,6 +659,29 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Handle Object Moving or Vertex Dragging
+        if (_isDraggingObject && _selectedObject != null && _dragStartDrawPt != null)
+        {
+            double deltaX = rawDrawPt.X - _dragStartDrawPt.X;
+            double deltaY = rawDrawPt.Y - _dragStartDrawPt.Y;
+
+            if (_dragVertexIndex >= 0 && _dragVertexIndex < _selectedObject.GeometryPoints.Count)
+            {
+                // Drag single vertex
+                _selectedObject.GeometryPoints[_dragVertexIndex] = rawDrawPt;
+            }
+            else
+            {
+                // Move entire object
+                _selectedObject.MoveBy(deltaX, deltaY);
+                _dragStartDrawPt = rawDrawPt;
+            }
+
+            SelectObject(_selectedObject);
+            RedrawCanvas();
+            return;
+        }
+
         // Calculate dynamic Object Snap (OSnap)
         double snapTolerance = 15.0 / CanvasScale.ScaleX;
         _currentSnap = SpatialCalculator.FindSnapPoint(rawDrawPt, _doc, snapTolerance);
@@ -621,6 +703,15 @@ public partial class MainWindow : Window
         {
             _isPanning = false;
             ViewportGrid.ReleaseMouseCapture();
+        }
+
+        if (_isDraggingObject)
+        {
+            _isDraggingObject = false;
+            _dragVertexIndex = -1;
+            _dragStartDrawPt = null;
+            ViewportGrid.ReleaseMouseCapture();
+            CalculateAndDisplayQto();
         }
     }
 
@@ -658,7 +749,55 @@ public partial class MainWindow : Window
             SetTool("Select");
             TxtStatus.Text = "Drawing operation canceled.";
         }
+        else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            CopySelectedObject();
+        }
+        else if (e.Key == Key.V && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            PasteObject();
+        }
+        else if (e.Key == Key.Delete)
+        {
+            if (_selectedObject != null)
+            {
+                _doc.TakeoffObjects.Remove(_selectedObject);
+                _selectedObject = null;
+                ClearBimInspector();
+                UpdateUiFromDoc();
+            }
+            else if (_selectedZone != null)
+            {
+                _doc.Zones.Remove(_selectedZone);
+                _selectedZone = null;
+                UpdateUiFromDoc();
+            }
+        }
     }
+
+    private void CopySelectedObject()
+    {
+        if (_selectedObject != null)
+        {
+            _clipboardObject = _selectedObject.Clone(0);
+            TxtStatus.Text = $"Copied: {_selectedObject.Name} to clipboard.";
+        }
+    }
+
+    private void PasteObject()
+    {
+        if (_clipboardObject != null)
+        {
+            var pasted = _clipboardObject.Clone(30.0); // 30px offset
+            _doc.TakeoffObjects.Add(pasted);
+            SelectObject(pasted);
+            UpdateUiFromDoc();
+            TxtStatus.Text = $"Pasted: {pasted.Name}. You can drag it to position.";
+        }
+    }
+
+    private void BtnCopy_Click(object sender, RoutedEventArgs e) => CopySelectedObject();
+    private void BtnPaste_Click(object sender, RoutedEventArgs e) => PasteObject();
 
     private void FinishCurrentShape()
     {

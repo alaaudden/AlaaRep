@@ -60,8 +60,12 @@
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="0,0,16,0">
                     <Button x:Name="BtnOpenPdf" Content="Open PDF / CAD" Click="BtnOpenPdf_Click"
                             Background="#334155" Foreground="White" BorderThickness="0" Padding="10,5" Margin="0,0,6,0"/>
-                    <Button x:Name="BtnOpenBluebeam" Content="Import Bluebeam (.btx/.csv)" Click="BtnOpenBluebeam_Click"
+                    <Button x:Name="BtnOpenBluebeam" Content="Import Bluebeam" Click="BtnOpenBluebeam_Click"
                             Background="#334155" Foreground="White" BorderThickness="0" Padding="10,5" Margin="0,0,6,0"/>
+                    <Button x:Name="BtnCopy" Content="Copy (Ctrl+C)" Click="BtnCopy_Click"
+                            Background="#334155" Foreground="White" BorderThickness="0" Padding="8,5" Margin="0,0,4,0"/>
+                    <Button x:Name="BtnPaste" Content="Paste (Ctrl+V)" Click="BtnPaste_Click"
+                            Background="#334155" Foreground="White" BorderThickness="0" Padding="8,5" Margin="0,0,6,0"/>
                     <Button x:Name="BtnLoadSample" Content="Sample Layout" Click="BtnLoadSample_Click"
                             Background="#334155" Foreground="White" BorderThickness="0" Padding="10,5" Margin="0,0,6,0"/>
                 </StackPanel>

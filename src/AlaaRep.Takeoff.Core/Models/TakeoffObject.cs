@@ -36,4 +36,34 @@ public class TakeoffObject
     {
         return BimProperties.TryGetValue(key, out var val) ? val : null;
     }
+
+    public void MoveBy(double deltaX, double deltaY)
+    {
+        for (int i = 0; i < GeometryPoints.Count; i++)
+        {
+            var p = GeometryPoints[i];
+            GeometryPoints[i] = new Point2D(p.X + deltaX, p.Y + deltaY);
+        }
+    }
+
+    public TakeoffObject Clone(double offset = 20.0)
+    {
+        var clone = new TakeoffObject
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = $"{Name} (Copy)",
+            Category = Category,
+            MeasurementType = MeasurementType,
+            ZoneId = ZoneId,
+            ColorHex = ColorHex,
+            Opacity = Opacity,
+            StrokeWidth = StrokeWidth,
+            Source = "User/Clone",
+            BluebeamSubject = BluebeamSubject,
+            BluebeamLabel = BluebeamLabel,
+            GeometryPoints = GeometryPoints.Select(p => new Point2D(p.X + offset, p.Y + offset)).ToList(),
+            BimProperties = new Dictionary<string, string>(BimProperties, StringComparer.OrdinalIgnoreCase)
+        };
+        return clone;
+    }
 }

@@ -93,4 +93,34 @@ public class TakeoffEngineTests
         Assert.Equal(10.0, report.GrandTotalLength, 1);
         Assert.Equal(440.0, report.GrandTotalCost, 1);
     }
+
+    [Fact]
+    public void TakeoffObject_MoveAndClone_PreservesAndOffsetsGeometry()
+    {
+        var obj = new TakeoffObject
+        {
+            Name = "Wall Segment",
+            Category = "Partitions",
+            MeasurementType = TakeoffMeasurementType.Length,
+            GeometryPoints = new List<Point2D> { new(10, 20), new(50, 60) }
+        };
+        obj.SetBimProperty("Material", "Gypsum");
+        obj.SetBimProperty("UnitCost", "35.00");
+
+        // Test MoveBy
+        obj.MoveBy(100, 50);
+        Assert.Equal(110.0, obj.GeometryPoints[0].X);
+        Assert.Equal(70.0, obj.GeometryPoints[0].Y);
+        Assert.Equal(150.0, obj.GeometryPoints[1].X);
+        Assert.Equal(110.0, obj.GeometryPoints[1].Y);
+
+        // Test Clone with offset
+        var clone = obj.Clone(offset: 25.0);
+        Assert.NotEqual(obj.Id, clone.Id);
+        Assert.Contains("(Copy)", clone.Name);
+        Assert.Equal(135.0, clone.GeometryPoints[0].X);
+        Assert.Equal(95.0, clone.GeometryPoints[0].Y);
+        Assert.Equal("Gypsum", clone.GetBimProperty("Material"));
+        Assert.Equal("35.00", clone.GetBimProperty("UnitCost"));
+    }
 }

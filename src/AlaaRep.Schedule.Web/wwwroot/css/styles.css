@@ -1021,3 +1021,65 @@ body {
   border-top: 1px solid var(--border);
   margin-top: 2rem;
 }
+
+/* Print / PDF Styling */
+@media print {
+  @page {
+    size: A3 landscape;
+    margin: 10mm;
+  }
+
+  body {
+    background-color: #ffffff;
+    color: #000000;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .navbar {
+    position: static;
+    box-shadow: none;
+    border-bottom: 2px solid #0f172a;
+    padding: 0.5rem 1rem;
+  }
+
+  .navbar-actions,
+  .upload-dropzone,
+  .toolbar-controls,
+  .period-filter-tabs,
+  .lookahead-controls,
+  .dashboard-footer {
+    display: none !important;
+  }
+
+  .dashboard-container {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    gap: 1rem;
+  }
+
+  .kpi-card,
+  .chart-card,
+  .lookahead-section,
+  .period-summary-section,
+  .table-card {
+    box-shadow: none;
+    border: 1px solid #cbd5e1;
+    page-break-inside: avoid;
+  }
+
+  .matrix-container {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .table-responsive {
+    overflow: visible !important;
+    border: none;
+  }
+
+  .data-table th, .data-table td {
+    padding: 0.4rem 0.5rem;
+  }
+}

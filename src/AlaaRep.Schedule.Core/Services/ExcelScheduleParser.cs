@@ -54,7 +54,7 @@ namespace AlaaRep.Schedule.Core.Services
             }
 
             var headerRow = worksheet.Row(headerRowIndex);
-            var (columnMap, timelineCols) = MapColumns(headerRow);
+            var (columnMap, timelineCols, metricColIndex) = MapColumns(headerRow);
 
             if (!columnMap.ContainsKey("activity_id") && !columnMap.ContainsKey("activity_name"))
             {
@@ -65,6 +65,7 @@ namespace AlaaRep.Schedule.Core.Services
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRowIndex;
 
             DateTime? detectedDataDate = null;
+            ActivityScheduleItem? currentActivity = null;
 
             for (int r = headerRowIndex + 1; r <= lastRow; r++)
             {
@@ -73,6 +74,75 @@ namespace AlaaRep.Schedule.Core.Services
 
                 var id = columnMap.ContainsKey("activity_id") ? row.Cell(columnMap["activity_id"]).GetString().Trim() : string.Empty;
                 var name = columnMap.ContainsKey("activity_name") ? row.Cell(columnMap["activity_name"]).GetString().Trim() : string.Empty;
+
+                // Check if this row is a dedicated "Earned Value" or "Planned Value" subrow for the previous activity
+                string rowMetricText = "";
+                if (metricColIndex.HasValue)
+                {
+                    rowMetricText = row.Cell(metricColIndex.Value).GetString().Trim().ToLowerInvariant();
+                }
+                else
+                {
+                    // Check cells before timeline for "earned value" or "planned value"
+                    int checkLimit = timelineCols.Any() ? timelineCols.Min(c => c.ColumnIndex) : 15;
+                    for (int c = 1; c < checkLimit; c++)
+                    {
+                        var ct = row.Cell(c).GetString().Trim().ToLowerInvariant();
+                        if (ct.Contains("earned") || ct.Contains("planned"))
+                        {
+                            rowMetricText = ct;
+                            break;
+                        }
+                    }
+                }
+
+                bool isEarnedSubRow = (string.IsNullOrWhiteSpace(id) || (currentActivity != null && id == currentActivity.ActivityId))
+                                      && rowMetricText.Contains("earned");
+                bool isPlannedSubRow = rowMetricText.Contains("planned");
+
+                if (isEarnedSubRow && currentActivity != null)
+                {
+                    // This row provides the Earned Value timeline data for currentActivity
+                    foreach (var tCol in timelineCols)
+                    {
+                        var cell = row.Cell(tCol.ColumnIndex);
+                        double cellVal = TryGetDouble(cell);
+                        if (cellVal != 0)
+                        {
+                            var period = currentActivity.PeriodValues.FirstOrDefault(p => p.PeriodLabel == tCol.HeaderText);
+                            if (period == null)
+                            {
+                                period = new PeriodicValueItem
+                                {
+                                    PeriodIndex = currentActivity.PeriodValues.Count + 1,
+                                    PeriodLabel = tCol.HeaderText,
+                                    PeriodDate = tCol.PeriodDate
+                                };
+                                currentActivity.PeriodValues.Add(period);
+                            }
+
+                            if (tCol.IsCost) period.EarnedCost = cellVal;
+                            else period.EarnedUnits = cellVal;
+
+                            if (tCol.WeekNumber > 0)
+                            {
+                                var wItem = currentActivity.WeeklyValues.FirstOrDefault(w => w.WeekNumber == tCol.WeekNumber);
+                                if (wItem == null)
+                                {
+                                    wItem = new WeeklyValueItem
+                                    {
+                                        WeekNumber = tCol.WeekNumber,
+                                        WeekLabel = tCol.HeaderText,
+                                        WeekEndingDate = tCol.PeriodDate
+                                    };
+                                    currentActivity.WeeklyValues.Add(wItem);
+                                }
+                                wItem.EarnedValue = cellVal;
+                            }
+                        }
+                    }
+                    continue;
+                }
 
                 if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(name))
                     continue;
@@ -101,6 +171,8 @@ namespace AlaaRep.Schedule.Core.Services
                     Level = indentLevel,
                     IsSummary = isBold && indentLevel <= 1
                 };
+
+                currentActivity = activity;
 
                 // Schedule variance days
                 if (columnMap.TryGetValue("var_days", out int varCol))
@@ -167,7 +239,6 @@ namespace AlaaRep.Schedule.Core.Services
                     var cell = row.Cell(tCol.ColumnIndex);
                     double cellVal = TryGetDouble(cell);
 
-                    // Look for existing period item or add new
                     var existing = activity.PeriodValues.FirstOrDefault(p => p.PeriodLabel == tCol.HeaderText);
                     if (existing == null)
                     {
@@ -187,12 +258,10 @@ namespace AlaaRep.Schedule.Core.Services
                     }
                     else
                     {
-                        // Default to Units (or standard value)
                         if (tCol.IsEarned) existing.EarnedUnits = cellVal;
                         else existing.PlannedUnits = cellVal;
                     }
 
-                    // Backwards compatible weekly item
                     if (tCol.WeekNumber > 0)
                     {
                         var wItem = activity.WeeklyValues.FirstOrDefault(w => w.WeekNumber == tCol.WeekNumber);
@@ -211,7 +280,12 @@ namespace AlaaRep.Schedule.Core.Services
                     }
                 }
 
-                // If monthly units or cost values exist, infer dates & BAC if missing
+                activities.Add(activity);
+            }
+
+            // Post-process activities to reconcile units & costs and infer dates/totals
+            foreach (var activity in activities)
+            {
                 if (activity.PeriodValues.Any())
                 {
                     var activePeriods = activity.PeriodValues.Where(p => p.PlannedUnits > 0 || p.EarnedUnits > 0 || p.PlannedCost > 0 || p.EarnedCost > 0).ToList();
@@ -222,7 +296,7 @@ namespace AlaaRep.Schedule.Core.Services
                         if (!activity.PlannedStartDate.HasValue && firstDate.HasValue)
                             activity.PlannedStartDate = firstDate.Value;
                         if (!activity.PlannedFinishDate.HasValue && lastDate.HasValue)
-                            activity.PlannedFinishDate = lastDate.Value.AddDays(28); // end of that month
+                            activity.PlannedFinishDate = lastDate.Value.AddDays(28);
 
                         if (!activity.ForecastStartDate.HasValue) activity.ForecastStartDate = activity.PlannedStartDate;
                         if (!activity.ForecastFinishDate.HasValue)
@@ -255,7 +329,7 @@ namespace AlaaRep.Schedule.Core.Services
                     if (activity.PlannedCostToDate <= 0 && totalPCost > 0)
                         activity.PlannedCostToDate = totalPCost;
 
-                    // If cost values were not specified separately, mirror units 1:1 unless cost was explicitly supplied
+                    // If cost values were not specified separately, mirror units or scale by ratio
                     if (activity.BudgetAtCompletionCost <= 0 && activity.BudgetAtCompletionUnits > 0)
                     {
                         activity.BudgetAtCompletionCost = activity.BudgetAtCompletionUnits;
@@ -280,9 +354,24 @@ namespace AlaaRep.Schedule.Core.Services
                             if (p.EarnedUnits == 0) p.EarnedUnits = p.EarnedCost;
                         }
                     }
+                    else if (activity.BudgetAtCompletionCost > 0 && activity.BudgetAtCompletionUnits > 0)
+                    {
+                        // Both BAC units and cost provided. If period costs are 0, scale proportionally
+                        double costPerUnit = activity.BudgetAtCompletionCost / activity.BudgetAtCompletionUnits;
+                        if (totalPCost == 0 && totalPUnits > 0)
+                        {
+                            foreach (var p in activity.PeriodValues)
+                            {
+                                p.PlannedCost = Math.Round(p.PlannedUnits * costPerUnit, 2);
+                                p.EarnedCost = Math.Round(p.EarnedUnits * costPerUnit, 2);
+                            }
+                            if (activity.EarnedCostToDate <= 0 && activity.EarnedUnitsToDate > 0)
+                                activity.EarnedCostToDate = Math.Round(activity.EarnedUnitsToDate * costPerUnit, 2);
+                            if (activity.PlannedCostToDate <= 0 && activity.PlannedUnitsToDate > 0)
+                                activity.PlannedCostToDate = Math.Round(activity.PlannedUnitsToDate * costPerUnit, 2);
+                        }
+                    }
                 }
-
-                activities.Add(activity);
             }
 
             // Estimate Data Date from periods that have earned values
@@ -321,10 +410,11 @@ namespace AlaaRep.Schedule.Core.Services
             return 1;
         }
 
-        private (Dictionary<string, int> columnMap, List<TimelineColumnDef> timelineCols) MapColumns(IXLRow headerRow)
+        private (Dictionary<string, int> columnMap, List<TimelineColumnDef> timelineCols, int? metricColIndex) MapColumns(IXLRow headerRow)
         {
             var map = new Dictionary<string, int>();
             var timelineCols = new List<TimelineColumnDef>();
+            int? metricColIndex = null;
 
             foreach (var cell in headerRow.CellsUsed())
             {
@@ -404,6 +494,10 @@ namespace AlaaRep.Schedule.Core.Services
                 {
                     map["planned_value"] = col;
                 }
+                else if (Matches(norm, "value type", "metric", "type", "cost/unit"))
+                {
+                    metricColIndex = col;
+                }
                 else
                 {
                     // Check if it's a timeline periodic column: e.g. "1-Sep-26", "Sep-26", "Oct-26", "2026-09-01", "W1", "Week 1"
@@ -430,7 +524,17 @@ namespace AlaaRep.Schedule.Core.Services
                 }
             }
 
-            return (map, timelineCols);
+            // If metric column wasn't explicitly named, look for column immediately preceding first timeline column
+            if (!metricColIndex.HasValue && timelineCols.Any())
+            {
+                var minTimelineCol = timelineCols.Min(c => c.ColumnIndex);
+                if (minTimelineCol > 1 && !map.Values.Contains(minTimelineCol - 1))
+                {
+                    metricColIndex = minTimelineCol - 1;
+                }
+            }
+
+            return (map, timelineCols, metricColIndex);
         }
 
         private static bool Matches(string text, params string[] patterns)
@@ -486,7 +590,6 @@ namespace AlaaRep.Schedule.Core.Services
             if (cell.DataType == XLDataType.Number)
             {
                 var val = cell.GetDouble();
-                // Check if it's formatted as fraction 0.1579 (15.79%) or direct 15.79
                 return val <= 1.0 ? Math.Round(val * 100.0, 2) : Math.Round(val, 2);
             }
 
@@ -502,7 +605,6 @@ namespace AlaaRep.Schedule.Core.Services
         {
             if (string.IsNullOrWhiteSpace(text)) return null;
 
-            // Formats like "1-Sep-26", "01-Sep-2026", "Sep-26", "2026-09-01", "1/9/2026"
             if (DateTime.TryParse(text, out var directDate))
                 return directDate;
 

@@ -97,6 +97,35 @@ namespace AlaaRep.Schedule.Tests
         }
 
         [Fact]
+        public void Parse_TwoRowPlannedAndEarnedFormat_CorrectlyAssociatesValues()
+        {
+            var generator = new SampleScheduleGenerator();
+            var parser = new ExcelScheduleParser();
+
+            var bytes = generator.GenerateSampleWorkbookBytes();
+            using var stream = new MemoryStream(bytes);
+
+            var summary = parser.Parse(stream);
+
+            // Mobilization MOB-100 has Planned Value row followed by Earned Value row
+            var mob = summary.Activities.FirstOrDefault(a => a.ActivityId == "MOB-100");
+            Assert.NotNull(mob);
+            Assert.NotEmpty(mob.PeriodValues);
+
+            // Mobilization had 1222 earned units and 1790.5 planned units in Sep-26
+            var sepPeriod = mob.PeriodValues.FirstOrDefault(p => p.PeriodLabel.Contains("Sep"));
+            Assert.NotNull(sepPeriod);
+            Assert.Equal(1222, sepPeriod.EarnedUnits);
+            Assert.Equal(1790.5, sepPeriod.PlannedUnits);
+
+            // Oct-26 has planned 1640.0, earned 1456.0
+            var octPeriod = mob.PeriodValues.FirstOrDefault(p => p.PeriodLabel.Contains("Oct"));
+            Assert.NotNull(octPeriod);
+            Assert.Equal(1640.0, octPeriod.PlannedUnits);
+            Assert.Equal(1456.0, octPeriod.EarnedUnits);
+        }
+
+        [Fact]
         public void Parse_InvalidWorksheet_ThrowsInformativeException()
         {
             using var stream = new MemoryStream();

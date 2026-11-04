@@ -35,6 +35,13 @@ function initEventListeners() {
     drawMatrixSCurveOverlay();
   });
 
+  const btnPrintPdf = document.getElementById('btnPrintPdf');
+  if (btnPrintPdf) {
+    btnPrintPdf.addEventListener('click', () => {
+      window.print();
+    });
+  }
+
   const btnDownloadSample = document.getElementById('btnDownloadSample');
   btnDownloadSample.addEventListener('click', () => {
     window.location.href = '/api/schedule/sample';

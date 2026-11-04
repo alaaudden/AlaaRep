@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private readonly List<Point2D> _drawingPoints = new();
     private readonly List<Point2D> _calibrationPoints = new();
     private System.Windows.Point _currentMousePos;
+    private SnapResult _currentSnap = new();
     private DateTime _lastClickTime = DateTime.MinValue;
     private Point2D? _lastClickPos;
 
@@ -214,30 +215,30 @@ public partial class MainWindow : Window
 
     private void RedrawCanvas()
     {
-        DrawingCanvas.Children.Clear();
+        if (FastCanvas == null) return;
 
-        // 1. Draw Grid
-        DrawGrid();
-
-        // 2. Draw CAD / PDF Vector Entities
-        foreach (var entity in _doc.Entities)
+        using (var dc = FastCanvas.RenderOpen())
         {
-            DrawEntity(entity);
-        }
-
-        // 3. Draw Specific Zones
-        if (_showZones)
-        {
-            foreach (var zone in _doc.Zones)
+            // 1. Draw CAD / PDF Vector Entities directly via DrawingContext
+            foreach (var entity in _doc.Entities)
             {
-                DrawZone(zone);
+                DrawEntityDirect(dc, entity);
             }
-        }
 
-        // 4. Draw Takeoff Objects
-        foreach (var obj in _doc.TakeoffObjects)
-        {
-            DrawTakeoffObject(obj);
+            // 2. Draw Specific Zones
+            if (_showZones)
+            {
+                foreach (var zone in _doc.Zones)
+                {
+                    DrawZoneDirect(dc, zone);
+                }
+            }
+
+            // 3. Draw Takeoff Objects
+            foreach (var obj in _doc.TakeoffObjects)
+            {
+                DrawTakeoffObjectDirect(dc, obj);
+            }
         }
 
         RedrawPreview();
@@ -257,171 +258,191 @@ public partial class MainWindow : Window
         {
             DrawCalibrationLine();
         }
+
+        // Draw Snapping Glyph (Orange square for Endpoint, Green triangle for Midpoint, Blue hourglass for Nearest)
+        if (_currentSnap != null && _currentSnap.DidSnap)
+        {
+            DrawSnapGlyph(_currentSnap);
+        }
     }
 
-    private void DrawGrid()
+    private void DrawSnapGlyph(SnapResult snap)
     {
-        double width = Math.Max(2000, _doc.Width * 1.5);
-        double height = Math.Max(1500, _doc.Height * 1.5);
-        var gridBrush = new SolidColorBrush(Color.FromRgb(30, 41, 59));
-
-        for (double x = 0; x <= width; x += 50)
+        var pt = snap.SnappedPoint;
+        if (snap.Type == SnapType.Endpoint)
         {
-            var line = new Line { X1 = x, Y1 = 0, X2 = x, Y2 = height, Stroke = gridBrush, StrokeThickness = 0.5 };
-            DrawingCanvas.Children.Add(line);
+            var rect = new Rectangle
+            {
+                Width = 12,
+                Height = 12,
+                Stroke = new SolidColorBrush(Color.FromRgb(245, 158, 11)), // Amber
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(90, 245, 158, 11))
+            };
+            Canvas.SetLeft(rect, pt.X - 6);
+            Canvas.SetTop(rect, pt.Y - 6);
+            PreviewCanvas.Children.Add(rect);
         }
-        for (double y = 0; y <= height; y += 50)
+        else if (snap.Type == SnapType.Midpoint)
         {
-            var line = new Line { X1 = 0, Y1 = y, X2 = width, Y2 = y, Stroke = gridBrush, StrokeThickness = 0.5 };
-            DrawingCanvas.Children.Add(line);
+            var tri = new Polygon
+            {
+                Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129)), // Emerald
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(90, 16, 185, 129))
+            };
+            tri.Points.Add(new System.Windows.Point(pt.X, pt.Y - 7));
+            tri.Points.Add(new System.Windows.Point(pt.X - 6, pt.Y + 5));
+            tri.Points.Add(new System.Windows.Point(pt.X + 6, pt.Y + 5));
+            PreviewCanvas.Children.Add(tri);
+        }
+        else if (snap.Type == SnapType.Nearest)
+        {
+            var circle = new Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Stroke = new SolidColorBrush(Color.FromRgb(56, 189, 248)), // Cyan
+                StrokeThickness = 2,
+                Fill = Brushes.Transparent
+            };
+            Canvas.SetLeft(circle, pt.X - 5);
+            Canvas.SetTop(circle, pt.Y - 5);
+            PreviewCanvas.Children.Add(circle);
         }
     }
 
-    private void DrawEntity(DrawingEntity ent)
+    private void DrawEntityDirect(DrawingContext dc, DrawingEntity ent)
     {
         if (ent.Points.Count == 0) return;
         var brush = ParseColor(ent.ColorHex ?? "#64748B");
+        var pen = new Pen(brush, Math.Max(0.75, ent.StrokeWidth));
+        pen.Freeze();
 
         if (ent.Type == DrawingEntityType.Text)
         {
-            var tb = new TextBlock
-            {
-                Text = ent.Text ?? "",
-                Foreground = brush,
-                FontSize = Math.Max(9, ent.TextSize),
-                FontWeight = FontWeights.SemiBold
-            };
-            Canvas.SetLeft(tb, ent.Points[0].X);
-            Canvas.SetTop(tb, ent.Points[0].Y);
-            DrawingCanvas.Children.Add(tb);
+            var formattedText = new FormattedText(
+                ent.Text ?? "",
+                System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight,
+                new Typeface("Segoe UI"),
+                Math.Max(10, ent.TextSize),
+                brush,
+                1.0);
+            dc.DrawText(formattedText, new System.Windows.Point(ent.Points[0].X, ent.Points[0].Y));
         }
         else if (ent.Type == DrawingEntityType.Circle)
         {
-            var ellipse = new Ellipse
-            {
-                Width = ent.Radius * 2,
-                Height = ent.Radius * 2,
-                Stroke = brush,
-                StrokeThickness = ent.StrokeWidth
-            };
-            Canvas.SetLeft(ellipse, ent.Points[0].X - ent.Radius);
-            Canvas.SetTop(ellipse, ent.Points[0].Y - ent.Radius);
-            DrawingCanvas.Children.Add(ellipse);
-        }
-        else if (ent.Type == DrawingEntityType.Polygon || ent.IsClosed)
-        {
-            var poly = new Polygon
-            {
-                Stroke = brush,
-                StrokeThickness = ent.StrokeWidth,
-                Fill = Brushes.Transparent
-            };
-            foreach (var p in ent.Points) poly.Points.Add(new System.Windows.Point(p.X, p.Y));
-            DrawingCanvas.Children.Add(poly);
+            dc.DrawEllipse(null, pen, new System.Windows.Point(ent.Points[0].X, ent.Points[0].Y), ent.Radius, ent.Radius);
         }
         else
         {
-            var polyline = new Polyline
+            var streamGeometry = new StreamGeometry();
+            using (var ctx = streamGeometry.Open())
             {
-                Stroke = brush,
-                StrokeThickness = ent.StrokeWidth
-            };
-            foreach (var p in ent.Points) polyline.Points.Add(new System.Windows.Point(p.X, p.Y));
-            DrawingCanvas.Children.Add(polyline);
+                ctx.BeginFigure(new System.Windows.Point(ent.Points[0].X, ent.Points[0].Y), ent.IsClosed || ent.Type == DrawingEntityType.Polygon, ent.IsClosed || ent.Type == DrawingEntityType.Polygon);
+                for (int i = 1; i < ent.Points.Count; i++)
+                {
+                    ctx.LineTo(new System.Windows.Point(ent.Points[i].X, ent.Points[i].Y), true, false);
+                }
+            }
+            streamGeometry.Freeze();
+            dc.DrawGeometry(null, pen, streamGeometry);
         }
     }
 
-    private void DrawZone(Zone zone)
+    private void DrawZoneDirect(DrawingContext dc, Zone zone)
     {
         if (zone.Boundary.Count < 3) return;
 
         bool isSelected = (_selectedZone?.Id == zone.Id);
         var baseColor = ParseColorValue(zone.ColorHex ?? "#10B981");
         var fillBrush = new SolidColorBrush(Color.FromArgb((byte)(zone.Opacity * 255), baseColor.R, baseColor.G, baseColor.B));
+        fillBrush.Freeze();
         var strokeBrush = new SolidColorBrush(baseColor);
+        strokeBrush.Freeze();
+        var pen = new Pen(strokeBrush, isSelected ? 3 : 1.5);
+        if (isSelected) pen.DashStyle = DashStyles.Dash;
+        pen.Freeze();
 
-        var poly = new Polygon
+        var streamGeometry = new StreamGeometry();
+        using (var ctx = streamGeometry.Open())
         {
-            Fill = fillBrush,
-            Stroke = strokeBrush,
-            StrokeThickness = isSelected ? 3 : 1.5
-        };
-        if (isSelected)
-        {
-            poly.StrokeDashArray = new DoubleCollection { 4, 3 };
+            ctx.BeginFigure(new System.Windows.Point(zone.Boundary[0].X, zone.Boundary[0].Y), true, true);
+            for (int i = 1; i < zone.Boundary.Count; i++)
+            {
+                ctx.LineTo(new System.Windows.Point(zone.Boundary[i].X, zone.Boundary[i].Y), true, false);
+            }
         }
-        foreach (var p in zone.Boundary) poly.Points.Add(new System.Windows.Point(p.X, p.Y));
-        DrawingCanvas.Children.Add(poly);
+        streamGeometry.Freeze();
+        dc.DrawGeometry(fillBrush, pen, streamGeometry);
 
-        // Zone text at centroid
         var centroid = SpatialCalculator.ComputeCentroid(zone.Boundary);
-        var tb = new TextBlock
-        {
-            Text = $"{zone.Name} ({zone.Code})",
-            Foreground = Brushes.White,
-            FontWeight = FontWeights.Bold,
-            FontSize = 12
-        };
-        Canvas.SetLeft(tb, centroid.X - 40);
-        Canvas.SetTop(tb, centroid.Y - 8);
-        DrawingCanvas.Children.Add(tb);
+        var formattedText = new FormattedText(
+            $"{zone.Name} ({zone.Code})",
+            System.Globalization.CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
+            12,
+            Brushes.White,
+            1.0);
+        dc.DrawText(formattedText, new System.Windows.Point(centroid.X - 40, centroid.Y - 8));
     }
 
-    private void DrawTakeoffObject(TakeoffObject obj)
+    private void DrawTakeoffObjectDirect(DrawingContext dc, TakeoffObject obj)
     {
         if (obj.GeometryPoints.Count == 0) return;
 
         bool isSelected = (_selectedObject?.Id == obj.Id);
         var baseColor = ParseColorValue(obj.ColorHex ?? "#3B82F6");
         var fillBrush = new SolidColorBrush(Color.FromArgb((byte)(obj.Opacity * 255), baseColor.R, baseColor.G, baseColor.B));
+        fillBrush.Freeze();
         var strokeBrush = new SolidColorBrush(baseColor);
+        strokeBrush.Freeze();
+        var pen = new Pen(strokeBrush, isSelected ? 3.5 : obj.StrokeWidth);
+        pen.Freeze();
 
         if (obj.MeasurementType == TakeoffMeasurementType.Count)
         {
+            var whitePen = new Pen(Brushes.White, 2);
+            whitePen.Freeze();
             foreach (var pt in obj.GeometryPoints)
             {
-                var el = new Ellipse
-                {
-                    Width = 14,
-                    Height = 14,
-                    Fill = strokeBrush,
-                    Stroke = Brushes.White,
-                    StrokeThickness = 2
-                };
-                Canvas.SetLeft(el, pt.X - 7);
-                Canvas.SetTop(el, pt.Y - 7);
-                DrawingCanvas.Children.Add(el);
+                dc.DrawEllipse(strokeBrush, whitePen, new System.Windows.Point(pt.X, pt.Y), 7, 7);
             }
         }
         else if (obj.MeasurementType == TakeoffMeasurementType.Length)
         {
-            var polyline = new Polyline
+            var streamGeometry = new StreamGeometry();
+            using (var ctx = streamGeometry.Open())
             {
-                Stroke = strokeBrush,
-                StrokeThickness = isSelected ? 4 : obj.StrokeWidth
-            };
-            foreach (var p in obj.GeometryPoints) polyline.Points.Add(new System.Windows.Point(p.X, p.Y));
-            DrawingCanvas.Children.Add(polyline);
+                ctx.BeginFigure(new System.Windows.Point(obj.GeometryPoints[0].X, obj.GeometryPoints[0].Y), false, false);
+                for (int i = 1; i < obj.GeometryPoints.Count; i++)
+                {
+                    ctx.LineTo(new System.Windows.Point(obj.GeometryPoints[i].X, obj.GeometryPoints[i].Y), true, false);
+                }
+            }
+            streamGeometry.Freeze();
+            dc.DrawGeometry(null, pen, streamGeometry);
 
-            // Handle points
             foreach (var pt in obj.GeometryPoints)
             {
-                var dot = new Ellipse { Width = 6, Height = 6, Fill = Brushes.White };
-                Canvas.SetLeft(dot, pt.X - 3);
-                Canvas.SetTop(dot, pt.Y - 3);
-                DrawingCanvas.Children.Add(dot);
+                dc.DrawEllipse(Brushes.White, null, new System.Windows.Point(pt.X, pt.Y), 3, 3);
             }
         }
         else // Area or Perimeter
         {
-            var poly = new Polygon
+            var streamGeometry = new StreamGeometry();
+            using (var ctx = streamGeometry.Open())
             {
-                Fill = fillBrush,
-                Stroke = strokeBrush,
-                StrokeThickness = isSelected ? 3 : obj.StrokeWidth
-            };
-            foreach (var p in obj.GeometryPoints) poly.Points.Add(new System.Windows.Point(p.X, p.Y));
-            DrawingCanvas.Children.Add(poly);
+                ctx.BeginFigure(new System.Windows.Point(obj.GeometryPoints[0].X, obj.GeometryPoints[0].Y), true, true);
+                for (int i = 1; i < obj.GeometryPoints.Count; i++)
+                {
+                    ctx.LineTo(new System.Windows.Point(obj.GeometryPoints[i].X, obj.GeometryPoints[i].Y), true, false);
+                }
+            }
+            streamGeometry.Freeze();
+            dc.DrawGeometry(fillBrush, pen, streamGeometry);
         }
     }
 
@@ -489,7 +510,9 @@ public partial class MainWindow : Window
     private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
     {
         var screenPt = e.GetPosition(ViewportGrid);
-        var drawPt = ScreenToDrawing(screenPt);
+        var rawDrawPt = ScreenToDrawing(screenPt);
+        var snap = SpatialCalculator.FindSnapPoint(rawDrawPt, _doc, 15.0 / CanvasScale.ScaleX);
+        var drawPt = snap.DidSnap ? snap.SnappedPoint : rawDrawPt;
 
         // If drawing a shape (Length, Area, Zone), Right-Click finishes and closes the operation
         if (e.RightButton == MouseButtonState.Pressed)
@@ -565,8 +588,7 @@ public partial class MainWindow : Window
     private void Viewport_MouseMove(object sender, MouseEventArgs e)
     {
         _currentMousePos = e.GetPosition(ViewportGrid);
-        var drawPt = ScreenToDrawing(_currentMousePos);
-        TxtCursorCoords.Text = $"X: {drawPt.X:F1}, Y: {drawPt.Y:F1} (px)";
+        var rawDrawPt = ScreenToDrawing(_currentMousePos);
 
         if (_isPanning)
         {
@@ -578,8 +600,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Only redraw preview layer (extremely fast, zero overhead)
-        if (_drawingPoints.Count > 0 || _calibrationPoints.Count > 0)
+        // Calculate dynamic Object Snap (OSnap)
+        double snapTolerance = 15.0 / CanvasScale.ScaleX;
+        _currentSnap = SpatialCalculator.FindSnapPoint(rawDrawPt, _doc, snapTolerance);
+
+        var effectivePt = _currentSnap.DidSnap ? _currentSnap.SnappedPoint : rawDrawPt;
+        TxtCursorCoords.Text = $"X: {effectivePt.X:F1}, Y: {effectivePt.Y:F1} (px)";
+        TxtSnapHud.Text = _currentSnap.DidSnap ? $"[SNAP: {_currentSnap.Type}] {_currentSnap.Description}" : "";
+
+        // Redraw preview layer with rubberband and snap glyph
+        if (_drawingPoints.Count > 0 || _calibrationPoints.Count > 0 || _currentSnap.DidSnap)
         {
             RedrawPreview();
         }
@@ -913,7 +943,7 @@ public partial class MainWindow : Window
             RbSelect.IsChecked = true;
         }
 
-        if (DrawingCanvas != null)
+        if (FastCanvas != null)
         {
             RedrawCanvas();
         }

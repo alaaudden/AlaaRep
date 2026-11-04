@@ -150,4 +150,38 @@ public class SpatialCalculatorTests
         // Point before segment start (distance to v)
         Assert.Equal(10.0, SpatialCalculator.DistanceToSegment(new Point2D(90, 100), v, w), 3);
     }
+
+    [Fact]
+    public void FindSnapPoint_SnapsToNearestEndpointAndMidpoint()
+    {
+        var doc = new DrawingDocument();
+        // Add a takeoff wall from (100, 100) to (300, 100)
+        doc.TakeoffObjects.Add(new TakeoffObject
+        {
+            Name = "Wall A",
+            MeasurementType = TakeoffMeasurementType.Length,
+            GeometryPoints = new List<Point2D> { new(100, 100), new(300, 100) }
+        });
+
+        // 1. Test Endpoint Snapping (Cursor at 104, 102 - within tolerance of endpoint 100, 100)
+        var snapEnd = SpatialCalculator.FindSnapPoint(new Point2D(104, 102), doc, snapTolerance: 15.0);
+        Assert.True(snapEnd.DidSnap);
+        Assert.Equal(SnapType.Endpoint, snapEnd.Type);
+        Assert.Equal(100.0, snapEnd.SnappedPoint.X, 1);
+        Assert.Equal(100.0, snapEnd.SnappedPoint.Y, 1);
+
+        // 2. Test Midpoint Snapping (Midpoint is at 200, 100; cursor at 198, 102)
+        var snapMid = SpatialCalculator.FindSnapPoint(new Point2D(198, 102), doc, snapTolerance: 15.0);
+        Assert.True(snapMid.DidSnap);
+        Assert.Equal(SnapType.Midpoint, snapMid.Type);
+        Assert.Equal(200.0, snapMid.SnappedPoint.X, 1);
+        Assert.Equal(100.0, snapMid.SnappedPoint.Y, 1);
+
+        // 3. Test Nearest Line Snapping (Cursor at 250, 104 - orthogonal projection to line is 250, 100)
+        var snapNearest = SpatialCalculator.FindSnapPoint(new Point2D(250, 104), doc, snapTolerance: 15.0);
+        Assert.True(snapNearest.DidSnap);
+        Assert.Equal(SnapType.Nearest, snapNearest.Type);
+        Assert.Equal(250.0, snapNearest.SnappedPoint.X, 1);
+        Assert.Equal(100.0, snapNearest.SnappedPoint.Y, 1);
+    }
 }

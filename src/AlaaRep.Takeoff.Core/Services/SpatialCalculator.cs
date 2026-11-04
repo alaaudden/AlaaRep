@@ -225,12 +225,164 @@ public static class SpatialCalculator
 
     public static double DistanceToSegment(Point2D p, Point2D v, Point2D w)
     {
+        return DistanceToSegmentWithProjection(p, v, w, out _);
+    }
+
+    public static double DistanceToSegmentWithProjection(Point2D p, Point2D v, Point2D w, out Point2D projection)
+    {
         double l2 = (w.X - v.X) * (w.X - v.X) + (w.Y - v.Y) * (w.Y - v.Y);
-        if (l2 < Epsilon) return p.DistanceTo(v);
+        if (l2 < Epsilon)
+        {
+            projection = v;
+            return p.DistanceTo(v);
+        }
         double t = ((p.X - v.X) * (w.X - v.X) + (p.Y - v.Y) * (w.Y - v.Y)) / l2;
         t = Math.Max(0, Math.Min(1, t));
-        var projection = new Point2D(v.X + t * (w.X - v.X), v.Y + t * (w.Y - v.Y));
+        projection = new Point2D(v.X + t * (w.X - v.X), v.Y + t * (w.Y - v.Y));
         return p.DistanceTo(projection);
+    }
+
+    /// <summary>
+    /// Geometric Object Snapping (OSnap) engine.
+    /// Evaluates cursor position against drawing entities, zones, and takeoff objects.
+    /// Snaps to Endpoints/Vertices, Midpoints, and Nearest points on lines.
+    /// </summary>
+    public static SnapResult FindSnapPoint(Point2D rawPoint, DrawingDocument doc, double snapTolerance = 15.0)
+    {
+        var result = new SnapResult { DidSnap = false, SnappedPoint = rawPoint };
+        if (doc == null) return result;
+
+        double bestDistance = snapTolerance;
+
+        void TestCandidate(Point2D pt, SnapType type, string desc)
+        {
+            double dist = rawPoint.DistanceTo(pt);
+            if (dist < bestDistance)
+            {
+                bestDistance = dist;
+                result.DidSnap = true;
+                result.SnappedPoint = pt;
+                result.Type = type;
+                result.Description = desc;
+            }
+        }
+
+        // 1. Endpoint / Vertex Snapping (Highest priority)
+        foreach (var obj in doc.TakeoffObjects)
+        {
+            foreach (var pt in obj.GeometryPoints)
+            {
+                TestCandidate(pt, SnapType.Endpoint, $"Takeoff Vertex: {obj.Name}");
+            }
+        }
+
+        foreach (var zone in doc.Zones)
+        {
+            foreach (var pt in zone.Boundary)
+            {
+                TestCandidate(pt, SnapType.Endpoint, $"Zone Vertex: {zone.Name}");
+            }
+        }
+
+        foreach (var ent in doc.Entities)
+        {
+            foreach (var pt in ent.Points)
+            {
+                TestCandidate(pt, SnapType.Endpoint, "CAD Entity Vertex");
+            }
+        }
+
+        // If an endpoint snap was found within tight tolerance, return immediately
+        if (result.DidSnap && result.Type == SnapType.Endpoint && bestDistance < snapTolerance * 0.5)
+        {
+            return result;
+        }
+
+        // 2. Midpoint Snapping (Higher priority than Nearest)
+        void TestMidpoints(IReadOnlyList<Point2D> pts, bool isClosed, string label)
+        {
+            if (pts.Count < 2) return;
+            int count = isClosed ? pts.Count : pts.Count - 1;
+            for (int i = 0; i < count; i++)
+            {
+                var p1 = pts[i];
+                var p2 = pts[(i + 1) % pts.Count];
+                var mid = new Point2D((p1.X + p2.X) * 0.5, (p1.Y + p2.Y) * 0.5);
+                TestCandidate(mid, SnapType.Midpoint, $"Midpoint: {label}");
+            }
+        }
+
+        foreach (var obj in doc.TakeoffObjects)
+        {
+            if (obj.MeasurementType == TakeoffMeasurementType.Length)
+                TestMidpoints(obj.GeometryPoints, false, obj.Name);
+            else if (obj.MeasurementType == TakeoffMeasurementType.Area)
+                TestMidpoints(obj.GeometryPoints, true, obj.Name);
+        }
+
+        foreach (var zone in doc.Zones)
+        {
+            TestMidpoints(zone.Boundary, true, zone.Name);
+        }
+
+        foreach (var ent in doc.Entities)
+        {
+            if (ent.Points.Count >= 2)
+            {
+                TestMidpoints(ent.Points, ent.IsClosed || ent.Type == DrawingEntityType.Polygon, ent.Layer ?? "Entity");
+            }
+        }
+
+        // If Endpoint or Midpoint snap is already found, prefer it over Nearest line
+        if (result.DidSnap && (result.Type == SnapType.Endpoint || result.Type == SnapType.Midpoint))
+        {
+            return result;
+        }
+
+        // 3. Nearest on Segment Snapping
+        void TestNearestSegments(IReadOnlyList<Point2D> pts, bool isClosed, string label)
+        {
+            if (pts.Count < 2) return;
+            int count = isClosed ? pts.Count : pts.Count - 1;
+            for (int i = 0; i < count; i++)
+            {
+                var p1 = pts[i];
+                var p2 = pts[(i + 1) % pts.Count];
+
+                double dist = DistanceToSegmentWithProjection(rawPoint, p1, p2, out var proj);
+                if (dist < bestDistance)
+                {
+                    bestDistance = dist;
+                    result.DidSnap = true;
+                    result.SnappedPoint = proj;
+                    result.Type = SnapType.Nearest;
+                    result.Description = $"Nearest Line: {label}";
+                }
+            }
+        }
+
+        foreach (var obj in doc.TakeoffObjects)
+        {
+            if (obj.MeasurementType == TakeoffMeasurementType.Length)
+                TestNearestSegments(obj.GeometryPoints, false, obj.Name);
+            else if (obj.MeasurementType == TakeoffMeasurementType.Area)
+                TestNearestSegments(obj.GeometryPoints, true, obj.Name);
+        }
+
+        foreach (var zone in doc.Zones)
+        {
+            TestNearestSegments(zone.Boundary, true, zone.Name);
+        }
+
+        foreach (var ent in doc.Entities)
+        {
+            if (ent.Points.Count >= 2)
+            {
+                TestNearestSegments(ent.Points, ent.IsClosed || ent.Type == DrawingEntityType.Polygon, ent.Layer ?? "Entity");
+            }
+        }
+
+        return result;
     }
 
     private static (double minX, double minY, double maxX, double maxY) GetBoundingBox(IReadOnlyList<Point2D> points)

@@ -122,14 +122,14 @@
                             </TransformGroup>
                         </Grid.RenderTransform>
 
-                        <!-- Grid Tile Background -->
-                        <Rectangle Width="5000" Height="5000" Fill="{StaticResource CadGridTileBrush}" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <!-- Grid Tile Background (Hit-test disabled so ViewportGrid catches 100% of clicks) -->
+                        <Rectangle Width="5000" Height="5000" Fill="{StaticResource CadGridTileBrush}" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-                        <!-- Fast Direct Drawing Surface (Hardware Visual Context, 60+ FPS) -->
-                        <local:FastDrawingCanvas x:Name="FastCanvas" Width="5000" Height="5000" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <!-- Fast Direct Drawing Surface (Hit-test disabled) -->
+                        <local:FastDrawingCanvas x:Name="FastCanvas" Width="5000" Height="5000" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-                        <!-- Interactive In-Progress Preview Layer (Only rubberband & handles, ultra-fast) -->
-                        <Canvas x:Name="PreviewCanvas" Background="Transparent" Width="3000" Height="2000" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <!-- Interactive In-Progress Preview Layer (Hit-test disabled so points/rubberband never intercept clicks) -->
+                        <Canvas x:Name="PreviewCanvas" Width="5000" Height="5000" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                     </Grid>
 
                     <!-- Viewport Floating HUD -->
@@ -141,7 +141,9 @@
                             <TextBlock Text="Active Tool: " Foreground="#94A3B8" FontSize="11"/>
                             <TextBlock x:Name="TxtActiveToolHud" Text="Select / Pan" Foreground="White" FontWeight="SemiBold" FontSize="11" Margin="0,0,12,0"/>
                             <TextBlock x:Name="TxtPromptHud" Text="" Foreground="#F59E0B" FontWeight="Bold" FontSize="11" Margin="0,0,12,0"/>
-                            <TextBlock x:Name="TxtSnapHud" Text="" Foreground="#34D399" FontWeight="Bold" FontSize="11"/>
+                            <TextBlock x:Name="TxtSnapHud" Text="" Foreground="#34D399" FontWeight="Bold" FontSize="11" Margin="0,0,12,0"/>
+                            <Button x:Name="BtnFinishShapeHud" Content="Finish Shape (Enter)" Click="BtnFinishShapeHud_Click" Visibility="Collapsed"
+                                    Background="#10B981" Foreground="White" FontWeight="Bold" FontSize="11" Padding="8,2" BorderThickness="0"/>
                         </StackPanel>
                     </Border>
 

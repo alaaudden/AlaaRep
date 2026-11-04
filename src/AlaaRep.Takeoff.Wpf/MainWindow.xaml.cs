@@ -627,7 +627,12 @@ public partial class MainWindow : Window
                 case "Length":
                 case "Area":
                 case "Zone":
+                    // Every left-click unconditionally records a point
                     _drawingPoints.Add(drawPt);
+                    if (BtnFinishShapeHud != null && _drawingPoints.Count >= 2)
+                    {
+                        BtnFinishShapeHud.Visibility = Visibility.Visible;
+                    }
                     TxtStatus.Text = $"{_currentTool} point {_drawingPoints.Count} added at ({drawPt.X:F1}, {drawPt.Y:F1}). Double-click or Right-click or press Enter to close.";
                     RedrawPreview();
                     break;
@@ -799,11 +804,17 @@ public partial class MainWindow : Window
     private void BtnCopy_Click(object sender, RoutedEventArgs e) => CopySelectedObject();
     private void BtnPaste_Click(object sender, RoutedEventArgs e) => PasteObject();
 
+    private void BtnFinishShapeHud_Click(object sender, RoutedEventArgs e)
+    {
+        FinishCurrentShape();
+    }
+
     private void FinishCurrentShape()
     {
         if (_drawingPoints.Count < 2) return;
         var points = new List<Point2D>(_drawingPoints);
         _drawingPoints.Clear();
+        if (BtnFinishShapeHud != null) BtnFinishShapeHud.Visibility = Visibility.Collapsed;
         RedrawPreview();
 
         if (_currentTool == "Length")
@@ -1080,6 +1091,11 @@ public partial class MainWindow : Window
         if (tool == "Select" && RbSelect != null && RbSelect.IsChecked != true)
         {
             RbSelect.IsChecked = true;
+        }
+
+        if (BtnFinishShapeHud != null)
+        {
+            BtnFinishShapeHud.Visibility = Visibility.Collapsed;
         }
 
         if (FastCanvas != null)

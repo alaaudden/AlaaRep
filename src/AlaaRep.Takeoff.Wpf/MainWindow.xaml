@@ -8,6 +8,7 @@
         Height="850" Width="1350"
         WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded"
+        KeyDown="Window_KeyDown"
         Background="#0F172A">
 
     <Grid>
@@ -81,15 +82,21 @@
                       MouseUp="Viewport_MouseUp"
                       MouseWheel="Viewport_MouseWheel">
 
-                    <!-- Background Visual Canvas -->
-                    <Canvas x:Name="DrawingCanvas" Background="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                        <Canvas.RenderTransform>
+                    <!-- Zoom & Pan Canvas Container -->
+                    <Grid x:Name="CanvasContainer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <Grid.RenderTransform>
                             <TransformGroup>
                                 <ScaleTransform x:Name="CanvasScale" ScaleX="1" ScaleY="1"/>
                                 <TranslateTransform x:Name="CanvasTranslate" X="50" Y="50"/>
                             </TransformGroup>
-                        </Canvas.RenderTransform>
-                    </Canvas>
+                        </Grid.RenderTransform>
+
+                        <!-- Static Drawing Layer (Grid, CAD entities, Zones, Takeoff Objects) -->
+                        <Canvas x:Name="DrawingCanvas" Background="Transparent" Width="3000" Height="2000" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
+                        <!-- Interactive In-Progress Preview Layer (Only rubberband & handles, ultra-fast) -->
+                        <Canvas x:Name="PreviewCanvas" Background="Transparent" Width="3000" Height="2000" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                    </Grid>
 
                     <!-- Viewport Floating HUD -->
                     <Border Background="#CC1E293B" CornerRadius="6" BorderBrush="#334155" BorderThickness="1"

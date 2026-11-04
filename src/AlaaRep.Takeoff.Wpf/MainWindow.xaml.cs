@@ -34,6 +34,8 @@ public partial class MainWindow : Window
     private readonly List<Point2D> _drawingPoints = new();
     private readonly List<Point2D> _calibrationPoints = new();
     private System.Windows.Point _currentMousePos;
+    private DateTime _lastClickTime = DateTime.MinValue;
+    private Point2D? _lastClickPos;
 
     // Observable collections for UI bindings
     public ObservableCollection<BimKeyValue> BimPropertiesList { get; } = new();
@@ -238,13 +240,19 @@ public partial class MainWindow : Window
             DrawTakeoffObject(obj);
         }
 
-        // 5. Draw Active In-Progress Polyline/Polygon
+        RedrawPreview();
+    }
+
+    private void RedrawPreview()
+    {
+        if (PreviewCanvas == null) return;
+        PreviewCanvas.Children.Clear();
+
         if (_drawingPoints.Count > 0)
         {
             DrawActivePoly();
         }
 
-        // 6. Draw Calibration Line
         if (_calibrationPoints.Count > 0)
         {
             DrawCalibrationLine();
@@ -421,30 +429,42 @@ public partial class MainWindow : Window
     {
         var stroke = new SolidColorBrush(Color.FromRgb(245, 158, 11));
         var fill = new SolidColorBrush(Color.FromArgb(60, 245, 158, 11));
+        var cur = ScreenToDrawing(_currentMousePos);
 
         if (_currentTool == "Area" || _currentTool == "Zone")
         {
             var poly = new Polygon { Stroke = stroke, StrokeThickness = 2, Fill = fill };
             foreach (var p in _drawingPoints) poly.Points.Add(new System.Windows.Point(p.X, p.Y));
-            var cur = ScreenToDrawing(_currentMousePos);
             poly.Points.Add(new System.Windows.Point(cur.X, cur.Y));
-            DrawingCanvas.Children.Add(poly);
+            PreviewCanvas.Children.Add(poly);
         }
         else if (_currentTool == "Length")
         {
             var polyline = new Polyline { Stroke = stroke, StrokeThickness = 2 };
             foreach (var p in _drawingPoints) polyline.Points.Add(new System.Windows.Point(p.X, p.Y));
-            var cur = ScreenToDrawing(_currentMousePos);
             polyline.Points.Add(new System.Windows.Point(cur.X, cur.Y));
-            DrawingCanvas.Children.Add(polyline);
+            PreviewCanvas.Children.Add(polyline);
         }
 
-        foreach (var p in _drawingPoints)
+        for (int i = 0; i < _drawingPoints.Count; i++)
         {
-            var dot = new Ellipse { Width = 8, Height = 8, Fill = stroke, Stroke = Brushes.White, StrokeThickness = 1 };
+            var p = _drawingPoints[i];
+            var dot = new Ellipse { Width = 8, Height = 8, Fill = stroke, Stroke = Brushes.White, StrokeThickness = 1.5 };
             Canvas.SetLeft(dot, p.X - 4);
             Canvas.SetTop(dot, p.Y - 4);
-            DrawingCanvas.Children.Add(dot);
+            PreviewCanvas.Children.Add(dot);
+
+            // Point number badge
+            var badge = new TextBlock
+            {
+                Text = (i + 1).ToString(),
+                Foreground = Brushes.White,
+                FontSize = 10,
+                FontWeight = FontWeights.Bold
+            };
+            Canvas.SetLeft(badge, p.X + 6);
+            Canvas.SetTop(badge, p.Y - 12);
+            PreviewCanvas.Children.Add(badge);
         }
     }
 
@@ -462,7 +482,7 @@ public partial class MainWindow : Window
             StrokeThickness = 2,
             StrokeDashArray = new DoubleCollection { 4, 3 }
         };
-        DrawingCanvas.Children.Add(line);
+        PreviewCanvas.Children.Add(line);
     }
 
     // Viewport Mouse Events with Accurate Transformation
@@ -471,8 +491,24 @@ public partial class MainWindow : Window
         var screenPt = e.GetPosition(ViewportGrid);
         var drawPt = ScreenToDrawing(screenPt);
 
-        // Middle button or right button or Space drags viewport
-        if (e.MiddleButton == MouseButtonState.Pressed || e.RightButton == MouseButtonState.Pressed)
+        // If drawing a shape (Length, Area, Zone), Right-Click finishes and closes the operation
+        if (e.RightButton == MouseButtonState.Pressed)
+        {
+            if ((_currentTool == "Length" || _currentTool == "Area" || _currentTool == "Zone") && _drawingPoints.Count >= 2)
+            {
+                FinishCurrentShape();
+                e.Handled = true;
+                return;
+            }
+
+            // Otherwise right-click initiates viewport pan
+            _isPanning = true;
+            _panStart = screenPt;
+            ViewportGrid.CaptureMouse();
+            return;
+        }
+
+        if (e.MiddleButton == MouseButtonState.Pressed)
         {
             _isPanning = true;
             _panStart = screenPt;
@@ -482,9 +518,16 @@ public partial class MainWindow : Window
 
         if (e.LeftButton == MouseButtonState.Pressed)
         {
-            if (e.ClickCount == 2)
+            var now = DateTime.UtcNow;
+            bool isDblClick = (e.ClickCount >= 2) ||
+                              ((now - _lastClickTime).TotalMilliseconds < 450 &&
+                               _lastClickPos != null && _lastClickPos.DistanceTo(drawPt) < 15.0);
+
+            _lastClickTime = now;
+            _lastClickPos = drawPt;
+
+            if (isDblClick && (_currentTool == "Length" || _currentTool == "Area" || _currentTool == "Zone"))
             {
-                // Double-click finishes polyline or polygon
                 FinishCurrentShape();
                 return;
             }
@@ -503,7 +546,8 @@ public partial class MainWindow : Window
                 case "Area":
                 case "Zone":
                     _drawingPoints.Add(drawPt);
-                    RedrawCanvas();
+                    TxtStatus.Text = $"{_currentTool} point {_drawingPoints.Count} added at ({drawPt.X:F1}, {drawPt.Y:F1}). Double-click or Right-click or press Enter to close.";
+                    RedrawPreview();
                     break;
 
                 case "Calibrate":
@@ -512,7 +556,7 @@ public partial class MainWindow : Window
                     {
                         PromptScaleCalibration();
                     }
-                    RedrawCanvas();
+                    RedrawPreview();
                     break;
             }
         }
@@ -534,9 +578,10 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Only redraw preview layer (extremely fast, zero overhead)
         if (_drawingPoints.Count > 0 || _calibrationPoints.Count > 0)
         {
-            RedrawCanvas();
+            RedrawPreview();
         }
     }
 
@@ -566,11 +611,31 @@ public partial class MainWindow : Window
         RedrawCanvas();
     }
 
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if ((_currentTool == "Length" || _currentTool == "Area" || _currentTool == "Zone") && _drawingPoints.Count >= 2)
+            {
+                FinishCurrentShape();
+            }
+        }
+        else if (e.Key == Key.Escape)
+        {
+            _drawingPoints.Clear();
+            _calibrationPoints.Clear();
+            RedrawPreview();
+            SetTool("Select");
+            TxtStatus.Text = "Drawing operation canceled.";
+        }
+    }
+
     private void FinishCurrentShape()
     {
         if (_drawingPoints.Count < 2) return;
         var points = new List<Point2D>(_drawingPoints);
         _drawingPoints.Clear();
+        RedrawPreview();
 
         if (_currentTool == "Length")
         {

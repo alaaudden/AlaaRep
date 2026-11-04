@@ -1,0 +1,19 @@
+# Build results
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+**/TestResults/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS generated files
+.DS_Store
+Thumbs.db

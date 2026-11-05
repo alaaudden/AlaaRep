@@ -260,12 +260,31 @@ public partial class MainWindow : Window
         LbZones.ItemsSource = null;
         LbZones.ItemsSource = _doc.Zones;
 
-        // Refresh BIM Hierarchy Tree with Objects & Live Geometry Summaries
+        // Preserve TreeView expansion state across operations
+        var expandedIds = new HashSet<string>();
+        CollectExpandedNodeIds(HierarchyTreeRoots, expandedIds);
+        string? activeSelectedId = _selectedTreeNode?.Id ?? _selectedObject?.Id;
+
+        // Refresh BIM Hierarchy Tree with preserved expansion state
         HierarchyTreeRoots.Clear();
-        HierarchyTreeRoots.Add(TreeItemViewModel.FromNode(_doc.HierarchyRoot, _doc.TakeoffObjects, _doc.Calibration));
+        HierarchyTreeRoots.Add(TreeItemViewModel.FromNode(
+            _doc.HierarchyRoot,
+            _doc.TakeoffObjects,
+            _doc.Calibration,
+            expandedIds.Count > 0 ? expandedIds : null,
+            activeSelectedId));
 
         CalculateAndDisplayQto();
         RedrawCanvas();
+    }
+
+    private static void CollectExpandedNodeIds(IEnumerable<TreeItemViewModel> items, HashSet<string> set)
+    {
+        foreach (var item in items)
+        {
+            if (item.IsExpanded) set.Add(item.Id);
+            CollectExpandedNodeIds(item.Children, set);
+        }
     }
 
     // Node Level / Hierarchy Re-parenting Methods

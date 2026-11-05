@@ -211,9 +211,15 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- TreeList Display -->
+                                <!-- TreeList Display with Preserved Expansion State -->
                                 <TreeView x:Name="TvBimHierarchy" Grid.Row="1" SelectedItemChanged="TvBimHierarchy_SelectedItemChanged"
                                           Background="{DynamicResource BgPrimaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderBrush="{DynamicResource BorderBrush}">
+                                    <TreeView.ItemContainerStyle>
+                                        <Style TargetType="TreeViewItem">
+                                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                                        </Style>
+                                    </TreeView.ItemContainerStyle>
                                     <TreeView.ItemTemplate>
                                         <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                                             <Border Padding="2" Margin="1" HorizontalAlignment="Stretch">

@@ -13,12 +13,19 @@ public class TreeItemViewModel
     public string GeometrySummary { get; set; } = string.Empty;
     public string? TagColor { get; set; }
     public bool IsObjectLeaf { get; set; }
+    public bool IsExpanded { get; set; } = true;
+    public bool IsSelected { get; set; }
     public TakeoffObject? AssociatedObject { get; set; }
     public BimHierarchyNode? AssociatedNode { get; set; }
 
     public ObservableCollection<TreeItemViewModel> Children { get; set; } = new();
 
-    public static TreeItemViewModel FromNode(BimHierarchyNode node, IReadOnlyList<TakeoffObject> allObjects, ScaleCalibration? calib = null)
+    public static TreeItemViewModel FromNode(
+        BimHierarchyNode node,
+        IReadOnlyList<TakeoffObject> allObjects,
+        ScaleCalibration? calib = null,
+        ISet<string>? expandedIds = null,
+        string? selectedId = null)
     {
         double scale = calib?.UnitsPerCoordinate ?? 0.05;
         string lUnit = calib?.LinearUnit ?? "m";
@@ -32,13 +39,15 @@ public class TreeItemViewModel
             Code = node.Code ?? "",
             GeometrySummary = $"{node.GetAllContainedObjectIds().Count()} items",
             IsObjectLeaf = false,
+            IsExpanded = expandedIds == null || expandedIds.Contains(node.Id),
+            IsSelected = selectedId == node.Id,
             AssociatedNode = node
         };
 
         // Add sub-nodes
         foreach (var childNode in node.Children)
         {
-            vm.Children.Add(FromNode(childNode, allObjects, calib));
+            vm.Children.Add(FromNode(childNode, allObjects, calib, expandedIds, selectedId));
         }
 
         // Add assigned takeoff geometry objects directly as children in the tree view
@@ -64,6 +73,7 @@ public class TreeItemViewModel
                     GeometrySummary = geomStr,
                     TagColor = obj.ColorHex ?? "#3B82F6",
                     IsObjectLeaf = true,
+                    IsSelected = selectedId == obj.Id,
                     AssociatedObject = obj
                 });
             }

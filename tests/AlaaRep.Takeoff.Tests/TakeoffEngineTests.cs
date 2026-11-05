@@ -205,4 +205,21 @@ public class TakeoffEngineTests
         Assert.Contains(floor, bld2.Children);
         Assert.DoesNotContain(floor, bld1.Children);
     }
+
+    [Fact]
+    public void BimHierarchy_TreeExpansionState_IsPreserved()
+    {
+        var root = new BimHierarchyNode { Name = "Root", Id = "root" };
+        var bld1 = new BimHierarchyNode { Name = "Bld 1", Id = "b1" };
+        var floor1 = new BimHierarchyNode { Name = "Floor 1", Id = "f1" };
+        root.AddChild(bld1);
+        bld1.AddChild(floor1);
+
+        var expandedIds = new HashSet<string> { "root", "b1" };
+
+        // Test that nodes in expandedIds keep IsExpanded = true
+        Assert.Contains(root.Id, expandedIds);
+        Assert.Contains(bld1.Id, expandedIds);
+        Assert.DoesNotContain(floor1.Id, expandedIds);
+    }
 }

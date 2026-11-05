@@ -20,6 +20,9 @@ public partial class MainWindow : Window
     private readonly DxfDrawingReader _dxfReader = new();
     private readonly BluebeamMarkupReader _bluebeamReader = new();
 
+    // Cached background raster image source for high-performance direct rendering
+    private System.Windows.Media.Imaging.BitmapSource? _bgImageSource;
+
     // Tools: Select, Count, Length, Area, Zone, Calibrate
     private string _currentTool = "Select";
     private readonly List<TakeoffObject> _selectedObjects = new();
@@ -223,12 +226,14 @@ public partial class MainWindow : Window
             Floor = "Level 01 - Ground Floor",
             Discipline = "Architectural",
             HierarchyNodeId = arch01.Id,
+            Height = 3.2, // 3.2m wall height
             ColorHex = "#EF4444",
             GeometryPoints = new List<Point2D> { new(150, 400), new(450, 400), new(750, 450), new(1050, 450) }
         };
         arch01.TakeoffObjectIds.Add(wallPartition.Id);
         wallPartition.SetBimProperty("Family", "Wall:Basic Wall Interior");
         wallPartition.SetBimProperty("Omniclass", "23-13 25 11 Drywall");
+        wallPartition.SetBimProperty("Height", "3.20");
         wallPartition.SetBimProperty("UnitCost", "65.00");
         doc.TakeoffObjects.Add(wallPartition);
 
@@ -836,6 +841,20 @@ public partial class MainWindow : Window
             var sheetPen = new Pen(new SolidColorBrush(Color.FromRgb(51, 65, 85)), 1.5);
             sheetPen.Freeze();
             dc.DrawRectangle(sheetBg, sheetPen, new Rect(0, 0, docW, docH));
+
+            // 1b. Draw Large Background Raster Image (if imported) with hardware acceleration
+            if (_bgImageSource != null)
+            {
+                if (_doc.BackgroundImageOpacity < 1.0)
+                {
+                    dc.PushOpacity(_doc.BackgroundImageOpacity);
+                }
+                dc.DrawImage(_bgImageSource, new Rect(0, 0, _doc.Width, _doc.Height));
+                if (_doc.BackgroundImageOpacity < 1.0)
+                {
+                    dc.Pop();
+                }
+            }
 
             // 2. Draw CAD / PDF Vector Entities directly via DrawingContext (filtered by layer visibility)
             foreach (var entity in _doc.Entities)
@@ -1674,6 +1693,22 @@ public partial class MainWindow : Window
         TxtPropCategory.Text = obj.Category;
         TxtPropType.Text = _selectedObjects.Count == 1 ? obj.MeasurementType.ToString() : "Mixed";
 
+        if (TxtPropHeight != null)
+        {
+            if (_selectedObjects.Count == 1)
+            {
+                TxtPropHeight.Text = obj.Height > 0
+                    ? obj.Height.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                    : (obj.MeasurementType == TakeoffMeasurementType.Length ? "3.00" : "0.00");
+                TxtPropHeight.IsEnabled = (obj.MeasurementType == TakeoffMeasurementType.Length);
+            }
+            else
+            {
+                TxtPropHeight.Text = "";
+                TxtPropHeight.IsEnabled = _selectedObjects.Any(o => o.MeasurementType == TakeoffMeasurementType.Length);
+            }
+        }
+
         // Refresh and select layer in CbObjectLayer dropdown
         RefreshObjectLayerDropdown(obj.Layer);
 
@@ -1811,6 +1846,7 @@ public partial class MainWindow : Window
         TxtPropName.Text = "";
         TxtPropCategory.Text = "";
         TxtPropType.Text = "";
+        if (TxtPropHeight != null) TxtPropHeight.Text = "";
         TxtPropQuantity.Text = "";
         if (CbObjectLayer != null) CbObjectLayer.SelectedItem = null;
         BimPropertiesList.Clear();
@@ -1849,6 +1885,10 @@ public partial class MainWindow : Window
         TxtGrandCount.Text = report.TotalItemCount.ToString();
         TxtGrandLength.Text = $"{report.GrandTotalLength:F2} {_doc.Calibration.LinearUnit}";
         TxtGrandArea.Text = $"{report.GrandTotalArea:F2} {_doc.Calibration.AreaUnit}";
+        if (TxtGrandWallArea != null)
+        {
+            TxtGrandWallArea.Text = $"{report.GrandTotalWallArea:F2} {_doc.Calibration.AreaUnit}";
+        }
 
         QtoRows.Clear();
         foreach (var item in report.Items)
@@ -1873,12 +1913,15 @@ public partial class MainWindow : Window
                         TakeoffMeasurementType.Length => $"{zb.Length:F2} {_doc.Calibration.LinearUnit}",
                         _ => $"{zb.Area:F2} {_doc.Calibration.AreaUnit}"
                     };
+                    string wallStr = zb.WallArea > 0 ? $"{zb.WallArea:F2} {_doc.Calibration.AreaUnit}" : "-";
+
                     QtoRows.Add(new QtoDisplayRow
                     {
                         ItemName = item.Name,
                         HierarchyPath = hier,
                         ZoneName = zb.ZoneName,
                         QuantityStr = qtyStr,
+                        WallAreaStr = wallStr,
                         CostStr = $"${zb.Cost:F2}"
                     });
                 }
@@ -1891,12 +1934,15 @@ public partial class MainWindow : Window
                     TakeoffMeasurementType.Length => $"{item.TotalLength:F2} {_doc.Calibration.LinearUnit}",
                     _ => $"{item.TotalArea:F2} {_doc.Calibration.AreaUnit}"
                 };
+                string wallStr = item.TotalWallArea > 0 ? $"{item.TotalWallArea:F2} {_doc.Calibration.AreaUnit}" : "-";
+
                 QtoRows.Add(new QtoDisplayRow
                 {
                     ItemName = item.Name,
                     HierarchyPath = hier,
                     ZoneName = "Unassigned",
                     QuantityStr = qtyStr,
+                    WallAreaStr = wallStr,
                     CostStr = $"${item.TotalCost:F2}"
                 });
             }
@@ -1994,6 +2040,73 @@ public partial class MainWindow : Window
         }
     }
 
+    private void BtnImportImage_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Import Large Architectural Plan / Drawing Image",
+            Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.tif)|*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.tif|All Files (*.*)|*.*"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            try
+            {
+                var bi = new System.Windows.Media.Imaging.BitmapImage();
+                bi.BeginInit();
+                bi.UriSource = new Uri(dlg.FileName);
+                bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bi.EndInit();
+                bi.Freeze();
+
+                _bgImageSource = bi;
+
+                // Create or adapt DrawingDocument to match image dimensions
+                _doc.FileName = System.IO.Path.GetFileName(dlg.FileName);
+                _doc.FileType = "Raster";
+                _doc.Width = bi.PixelWidth;
+                _doc.Height = bi.PixelHeight;
+                _doc.BackgroundImagePath = dlg.FileName;
+                _doc.BackgroundImageWidth = bi.PixelWidth;
+                _doc.BackgroundImageHeight = bi.PixelHeight;
+
+                if (SliderBgOpacity != null)
+                {
+                    SliderBgOpacity.Value = _doc.BackgroundImageOpacity;
+                }
+
+                UpdateUiFromDoc();
+                ZoomFit();
+
+                var res = MessageBox.Show(
+                    $"Imported drawing image ({bi.PixelWidth} x {bi.PixelHeight} px).\n\nWould you like to Calibrate Scale now (pick 2 points of known dimension on the plan)?",
+                    "Drawing Imported",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information);
+
+                if (res == MessageBoxResult.Yes)
+                {
+                    SetTool("Calibrate");
+                    if (RbCalibrate != null) RbCalibrate.IsChecked = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to load drawing image: {ex.Message}", "Image Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void SliderBgOpacity_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtBgImageOpacity != null)
+        {
+            TxtBgImageOpacity.Text = $"{(int)(e.NewValue * 100)}%";
+        }
+        _doc.BackgroundImageOpacity = e.NewValue;
+        RedrawCanvas();
+    }
+
     private void BtnOpenBluebeam_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog
@@ -2039,7 +2152,7 @@ public partial class MainWindow : Window
         {
             var report = _engine.CalculateReport(_doc);
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("ID,Name,Category,MeasurementType,Zone,Count,Length,Area,Cost");
+            sb.AppendLine("ID,Name,Category,MeasurementType,Zone,Height,Count,Length,FloorArea,WallArea,Cost");
 
             foreach (var item in report.Items)
             {
@@ -2047,12 +2160,12 @@ public partial class MainWindow : Window
                 {
                     foreach (var zb in item.ZoneBreakdowns)
                     {
-                        sb.AppendLine($"\"{item.ObjectId}\",\"{item.Name}\",\"{item.Category}\",\"{item.MeasurementType}\",\"{zb.ZoneName}\",{zb.Count},{zb.Length},{zb.Area},{zb.Cost}");
+                        sb.AppendLine($"\"{item.ObjectId}\",\"{item.Name}\",\"{item.Category}\",\"{item.MeasurementType}\",\"{zb.ZoneName}\",{item.Height:F2},{zb.Count},{zb.Length:F2},{zb.Area:F2},{zb.WallArea:F2},{zb.Cost:F2}");
                     }
                 }
                 else
                 {
-                    sb.AppendLine($"\"{item.ObjectId}\",\"{item.Name}\",\"{item.Category}\",\"{item.MeasurementType}\",\"Unassigned\",{item.TotalCount},{item.TotalLength},{item.TotalArea},{item.TotalCost}");
+                    sb.AppendLine($"\"{item.ObjectId}\",\"{item.Name}\",\"{item.Category}\",\"{item.MeasurementType}\",\"Unassigned\",{item.Height:F2},{item.TotalCount},{item.TotalLength:F2},{item.TotalArea:F2},{item.TotalWallArea:F2},{item.TotalCost:F2}");
                 }
             }
 
@@ -2075,6 +2188,12 @@ public partial class MainWindow : Window
         }
         _selectedObject.Category = _selectedObject.Layer;
 
+        // Parse and store wall height if applicable
+        if (TxtPropHeight != null && double.TryParse(TxtPropHeight.Text, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedHeight))
+        {
+            _selectedObject.Height = parsedHeight;
+        }
+
         _selectedObject.BimProperties.Clear();
         foreach (var kvp in BimPropertiesList)
         {
@@ -2082,6 +2201,11 @@ public partial class MainWindow : Window
             {
                 _selectedObject.SetBimProperty(kvp.Key, kvp.Value ?? "");
             }
+        }
+
+        if (_selectedObject.Height > 0)
+        {
+            _selectedObject.SetBimProperty("Height", _selectedObject.Height.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
         }
 
         UpdateUiFromDoc();
@@ -2307,5 +2431,6 @@ public class QtoDisplayRow
     public string HierarchyPath { get; set; } = string.Empty;
     public string ZoneName { get; set; } = string.Empty;
     public string QuantityStr { get; set; } = string.Empty;
+    public string WallAreaStr { get; set; } = string.Empty;
     public string CostStr { get; set; } = string.Empty;
 }

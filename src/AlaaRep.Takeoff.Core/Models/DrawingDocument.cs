@@ -14,6 +14,12 @@ public class DrawingDocument
     public ScaleCalibration Calibration { get; set; } = new();
     public string? BackgroundDataUrl { get; set; }
 
+    // High-resolution background raster image support
+    public string? BackgroundImagePath { get; set; }
+    public double BackgroundImageWidth { get; set; }
+    public double BackgroundImageHeight { get; set; }
+    public double BackgroundImageOpacity { get; set; } = 1.0;
+
     // BIM Project Hierarchy Tree (Project -> Building -> Floor -> Discipline -> Objects)
     public BimHierarchyNode HierarchyRoot { get; set; } = new()
     {

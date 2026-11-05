@@ -83,4 +83,43 @@ Fire Sprinkler,Page 1,Pendant Head,12 count,,,,Fire Protection,120.00,Zone 1";
         Assert.Equal(TakeoffMeasurementType.Area, markups[1].MeasurementType);
         Assert.Equal(4, markups[1].GeometryPoints.Count);
     }
+
+    [Fact]
+    public void Verify_DrawingDocument_BackgroundImageProperties()
+    {
+        var doc = new DrawingDocument
+        {
+            FileName = "Architectural_Plan.png",
+            FileType = "Raster",
+            BackgroundImagePath = "/samples/architectural_plan_sample.png",
+            BackgroundImageWidth = 1909,
+            BackgroundImageHeight = 1005,
+            BackgroundImageOpacity = 0.85
+        };
+
+        Assert.Equal("Raster", doc.FileType);
+        Assert.Equal("/samples/architectural_plan_sample.png", doc.BackgroundImagePath);
+        Assert.Equal(1909, doc.BackgroundImageWidth);
+        Assert.Equal(1005, doc.BackgroundImageHeight);
+        Assert.Equal(0.85, doc.BackgroundImageOpacity);
+    }
+
+    [Fact]
+    public void Verify_Document_InitializesWithBackgroundMetadata()
+    {
+        var doc = new DrawingDocument();
+        Assert.Null(doc.BackgroundImagePath);
+        Assert.Equal(0.0, doc.BackgroundImageWidth);
+        Assert.Equal(0.0, doc.BackgroundImageHeight);
+        Assert.Equal(1.0, doc.BackgroundImageOpacity);
+
+        doc.BackgroundImagePath = "plan.jpg";
+        doc.BackgroundImageWidth = 3840;
+        doc.BackgroundImageHeight = 2160;
+        doc.Width = doc.BackgroundImageWidth;
+        doc.Height = doc.BackgroundImageHeight;
+
+        Assert.Equal(3840, doc.Width);
+        Assert.Equal(2160, doc.Height);
+    }
 }

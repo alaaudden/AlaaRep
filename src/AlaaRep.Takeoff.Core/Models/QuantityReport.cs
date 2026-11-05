@@ -9,6 +9,7 @@ public class TakeoffZoneBreakdown
     public int Count { get; set; }
     public double Length { get; set; }
     public double Area { get; set; }
+    public double WallArea { get; set; } // Vertical wall surface area for linear walls
     public double Perimeter { get; set; }
     public double Cost { get; set; }
 }
@@ -21,9 +22,11 @@ public class TakeoffItemSummary
     public TakeoffMeasurementType MeasurementType { get; set; }
     public Dictionary<string, string> BimProperties { get; set; } = new();
 
+    public double Height { get; set; } // Wall Height for linear elements
     public int TotalCount { get; set; }
     public double TotalLength { get; set; }
     public double TotalArea { get; set; }
+    public double TotalWallArea { get; set; } // Vertical wall surface area (TotalLength * Height)
     public double TotalPerimeter { get; set; }
     public double UnitCost { get; set; }
     public double TotalCost { get; set; }
@@ -42,6 +45,7 @@ public class ZoneQuantitySummary
     public int TotalObjectCount { get; set; }
     public double TotalLength { get; set; }
     public double TotalTakeoffArea { get; set; }
+    public double TotalWallArea { get; set; } // Total vertical wall area within zone
     public double TotalCost { get; set; }
 
     public List<TakeoffItemSummary> Items { get; set; } = new();
@@ -56,6 +60,7 @@ public class QuantityReport
     public int TotalItemCount { get; set; }
     public double GrandTotalLength { get; set; }
     public double GrandTotalArea { get; set; }
+    public double GrandTotalWallArea { get; set; } // Total vertical wall area across all walls
     public double GrandTotalCost { get; set; }
 
     public List<TakeoffItemSummary> Items { get; set; } = new();

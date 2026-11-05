@@ -37,6 +37,27 @@ public class TakeoffObject
     public double Opacity { get; set; } = 0.4;
     public double StrokeWidth { get; set; } = 2.0;
 
+    // Wall Height property (used to compute vertical wall surface area for linear walls)
+    public double Height
+    {
+        get
+        {
+            if (BimProperties.TryGetValue("Height", out var hStr) ||
+                BimProperties.TryGetValue("WallHeight", out hStr))
+            {
+                if (double.TryParse(hStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double val))
+                {
+                    return val;
+                }
+            }
+            return 0.0;
+        }
+        set
+        {
+            BimProperties["Height"] = value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
     public List<Point2D> GeometryPoints { get; set; } = new();
 
     public Dictionary<string, string> BimProperties { get; set; } = new(StringComparer.OrdinalIgnoreCase);

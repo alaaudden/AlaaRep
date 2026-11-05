@@ -57,6 +57,9 @@ public class TakeoffEngine
             }
             itemSummary.UnitCost = unitCost;
 
+            double height = obj.Height;
+            itemSummary.Height = height;
+
             switch (obj.MeasurementType)
             {
                 case TakeoffMeasurementType.Count:
@@ -66,6 +69,10 @@ public class TakeoffEngine
 
                 case TakeoffMeasurementType.Length:
                     itemSummary.TotalLength = Math.Round(SpatialCalculator.CalculatePolylineLength(obj.GeometryPoints) * scale, 3);
+                    if (height > 0)
+                    {
+                        itemSummary.TotalWallArea = Math.Round(itemSummary.TotalLength * height, 3);
+                    }
                     itemSummary.TotalCost = Math.Round(itemSummary.TotalLength * unitCost, 2);
                     break;
 
@@ -88,6 +95,7 @@ public class TakeoffEngine
             report.TotalItemCount += itemSummary.TotalCount;
             report.GrandTotalLength += itemSummary.TotalLength;
             report.GrandTotalArea += itemSummary.TotalArea;
+            report.GrandTotalWallArea += itemSummary.TotalWallArea;
             report.GrandTotalCost += itemSummary.TotalCost;
 
             string cat = string.IsNullOrWhiteSpace(obj.Category) ? "Uncategorized" : obj.Category;
@@ -130,6 +138,8 @@ public class TakeoffEngine
         double unitCost,
         Dictionary<string, ZoneQuantitySummary> zoneSummaryMap)
     {
+        double height = obj.Height;
+
         if (!string.IsNullOrEmpty(obj.ZoneId) && zones.Any(z => z.Id == obj.ZoneId || z.Name == obj.ZoneId))
         {
             var zone = zones.First(z => z.Id == obj.ZoneId || z.Name == obj.ZoneId);
@@ -141,6 +151,7 @@ public class TakeoffEngine
                 Count = itemSummary.TotalCount,
                 Length = itemSummary.TotalLength,
                 Area = itemSummary.TotalArea,
+                WallArea = itemSummary.TotalWallArea,
                 Perimeter = itemSummary.TotalPerimeter,
                 Cost = itemSummary.TotalCost
             };
@@ -151,6 +162,7 @@ public class TakeoffEngine
                 zs.TotalObjectCount += breakdown.Count;
                 zs.TotalLength += breakdown.Length;
                 zs.TotalTakeoffArea += breakdown.Area;
+                zs.TotalWallArea += breakdown.WallArea;
                 zs.TotalCost += breakdown.Cost;
                 zs.Items.Add(itemSummary);
             }
@@ -185,6 +197,10 @@ public class TakeoffEngine
                     if (lenInside > 1e-4)
                     {
                         breakdown.Length = Math.Round(lenInside, 3);
+                        if (height > 0)
+                        {
+                            breakdown.WallArea = Math.Round(breakdown.Length * height, 3);
+                        }
                         breakdown.Cost = Math.Round(lenInside * unitCost, 2);
                         itemSummary.ZoneBreakdowns.Add(breakdown);
                     }
@@ -218,6 +234,7 @@ public class TakeoffEngine
                     zs.TotalObjectCount += breakdown.Count;
                     zs.TotalLength += breakdown.Length;
                     zs.TotalTakeoffArea += breakdown.Area;
+                    zs.TotalWallArea += breakdown.WallArea;
                     zs.TotalCost += breakdown.Cost;
                     zs.Items.Add(itemSummary);
                 }

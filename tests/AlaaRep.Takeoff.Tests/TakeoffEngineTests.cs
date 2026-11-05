@@ -222,4 +222,80 @@ public class TakeoffEngineTests
         Assert.Contains(bld1.Id, expandedIds);
         Assert.DoesNotContain(floor1.Id, expandedIds);
     }
+
+    [Fact]
+    public void Verify_LengthObject_CalculatesVerticalWallArea_WithHeight()
+    {
+        var doc = new DrawingDocument
+        {
+            FileName = "Wall Elevation Plan",
+            Calibration = new ScaleCalibration
+            {
+                CalibrationPixelDistance = 100.0,
+                CalibrationRealDistance = 10.0 // 1px = 0.1m
+            }
+        };
+
+        // Zone 1: (0,0) to (100, 100) (10m x 10m)
+        doc.Zones.Add(new Zone
+        {
+            Id = "z-office",
+            Name = "Office Zone",
+            Code = "Z-OFF",
+            Boundary = new List<Point2D> { new(0, 0), new(100, 0), new(100, 100), new(0, 100) }
+        });
+
+        // Zone 2: (100, 0) to (200, 100) (10m x 10m)
+        doc.Zones.Add(new Zone
+        {
+            Id = "z-corridor",
+            Name = "Corridor Zone",
+            Code = "Z-COR",
+            Boundary = new List<Point2D> { new(100, 0), new(200, 0), new(200, 100), new(100, 100) }
+        });
+
+        // Wall: Length = 150px (15.0m). 100px (10.0m) in Zone 1, 50px (5.0m) in Zone 2.
+        // Wall Height: 3.0m
+        // Expected Wall Area:
+        // Total Wall Area = 15.0m * 3.0m = 45.0 m²
+        // Zone 1 Wall Area = 10.0m * 3.0m = 30.0 m²
+        // Zone 2 Wall Area = 5.0m * 3.0m = 15.0 m²
+        var wall = new TakeoffObject
+        {
+            Id = "wall-partition-1",
+            Name = "Drywall Partition STC 50",
+            Category = "Partitions",
+            MeasurementType = TakeoffMeasurementType.Length,
+            Height = 3.0,
+            GeometryPoints = new List<Point2D> { new(0, 50), new(150, 50) }
+        };
+        wall.SetBimProperty("UnitCost", "50.00");
+        doc.TakeoffObjects.Add(wall);
+
+        var engine = new TakeoffEngine();
+        var report = engine.CalculateReport(doc);
+
+        Assert.Equal(15.0, report.GrandTotalLength, 1);
+        Assert.Equal(45.0, report.GrandTotalWallArea, 1);
+
+        var item = report.Items.First(i => i.ObjectId == "wall-partition-1");
+        Assert.Equal(3.0, item.Height);
+        Assert.Equal(15.0, item.TotalLength, 1);
+        Assert.Equal(45.0, item.TotalWallArea, 1);
+
+        Assert.Equal(2, item.ZoneBreakdowns.Count);
+        var zb1 = item.ZoneBreakdowns.First(z => z.ZoneId == "z-office");
+        Assert.Equal(10.0, zb1.Length, 1);
+        Assert.Equal(30.0, zb1.WallArea, 1);
+
+        var zb2 = item.ZoneBreakdowns.First(z => z.ZoneId == "z-corridor");
+        Assert.Equal(5.0, zb2.Length, 1);
+        Assert.Equal(15.0, zb2.WallArea, 1);
+
+        var zSum1 = report.Zones.First(z => z.ZoneId == "z-office");
+        Assert.Equal(30.0, zSum1.TotalWallArea, 1);
+
+        var zSum2 = report.Zones.First(z => z.ZoneId == "z-corridor");
+        Assert.Equal(15.0, zSum2.TotalWallArea, 1);
+    }
 }

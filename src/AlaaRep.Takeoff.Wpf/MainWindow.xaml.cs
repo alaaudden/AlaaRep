@@ -338,6 +338,104 @@ public partial class MainWindow : Window
         RedrawCanvas();
     }
 
+    private void LbLayers_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LbLayers.SelectedItem is LayerItemViewModel vm)
+        {
+            TxtNewLayerName.Text = vm.Name;
+        }
+    }
+
+    private void BtnAddLayer_Click(object sender, RoutedEventArgs e)
+    {
+        string newName = TxtNewLayerName.Text.Trim();
+        if (string.IsNullOrWhiteSpace(newName)) return;
+
+        if (!_layerVisibility.ContainsKey(newName))
+        {
+            _layerVisibility[newName] = true;
+        }
+
+        if (!LayersList.Any(l => string.Equals(l.Name, newName, StringComparison.OrdinalIgnoreCase)))
+        {
+            LayersList.Add(new LayerItemViewModel
+            {
+                Name = newName,
+                Count = 0,
+                LayerType = "Custom",
+                IsVisible = true
+            });
+        }
+
+        TxtStatus.Text = $"Layer '{newName}' added.";
+    }
+
+    private void BtnDeleteLayer_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedLayer = LbLayers.SelectedItem as LayerItemViewModel;
+        string layerToDelete = selectedLayer?.Name ?? TxtNewLayerName.Text.Trim();
+        if (string.IsNullOrWhiteSpace(layerToDelete) || string.Equals(layerToDelete, "0 (Default)", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show("Please select a custom layer to delete. Default layer cannot be deleted.", "Delete Layer", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Reassign affected takeoff objects to default "Takeoff"
+        foreach (var obj in _doc.TakeoffObjects)
+        {
+            if (string.Equals(obj.Category, layerToDelete, StringComparison.OrdinalIgnoreCase))
+            {
+                obj.Category = "General";
+            }
+        }
+
+        // Reassign affected CAD entities
+        foreach (var ent in _doc.Entities)
+        {
+            if (string.Equals(ent.Layer, layerToDelete, StringComparison.OrdinalIgnoreCase))
+            {
+                ent.Layer = "0 (Default)";
+            }
+        }
+
+        _layerVisibility.Remove(layerToDelete);
+        UpdateUiFromDoc();
+        TxtStatus.Text = $"Layer '{layerToDelete}' deleted. Objects moved to default layer.";
+    }
+
+    private void BtnAssignLayerToSelected_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedLayer = LbLayers.SelectedItem as LayerItemViewModel;
+        string targetLayer = selectedLayer?.Name ?? TxtNewLayerName.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(targetLayer))
+        {
+            MessageBox.Show("Please select or type a layer name to assign.", "Assign Layer", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_selectedObjects.Count == 0)
+        {
+            MessageBox.Show("Please select one or more takeoff objects to assign this layer to.", "Assign Layer", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        foreach (var obj in _selectedObjects)
+        {
+            obj.Category = targetLayer;
+            obj.SetBimProperty("Layer", targetLayer);
+        }
+
+        if (!_layerVisibility.ContainsKey(targetLayer))
+        {
+            _layerVisibility[targetLayer] = true;
+        }
+
+        UpdateUiFromDoc();
+        UpdateBimInspector();
+        TxtStatus.Text = $"Assigned layer '{targetLayer}' to {_selectedObjects.Count} selected object(s).";
+    }
+
     private void BtnHideAllLayers_Click(object sender, RoutedEventArgs e)
     {
         foreach (var layer in LayersList)
@@ -1183,10 +1281,7 @@ public partial class MainWindow : Window
                     var hitZone = FindZoneAt(drawPt);
                     if (hitZone != null)
                     {
-                        _selectedZone = hitZone;
-                        _selectedObjects.Clear();
-                        ClearBimInspector();
-                        RedrawCanvas();
+                        SelectZone(hitZone);
                         return;
                     }
 
@@ -1683,13 +1778,21 @@ public partial class MainWindow : Window
         double pixelDist = _calibrationPoints[0].DistanceTo(_calibrationPoints[1]);
         _calibrationPoints.Clear();
 
-        // Calibration prompt
-        _doc.Calibration.CalibrationPixelDistance = pixelDist;
-        _doc.Calibration.CalibrationRealDistance = 5.0; // 5 meters default
-        _doc.Calibration.ScaleLabel = $"Calibrated ({pixelDist:F1}px = 5.0m)";
+        var dialog = new CalibrationDialog(pixelDist, _doc.Calibration)
+        {
+            Owner = this
+        };
 
-        MessageBox.Show($"Scale Calibrated successfully!\n{pixelDist:F1} drawing pixels = 5.0 {_doc.Calibration.LinearUnit}.",
-            "Scale Calibration", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (dialog.ShowDialog() == true)
+        {
+            _doc.Calibration.CalibrationPixelDistance = dialog.PixelDistance;
+            _doc.Calibration.CalibrationRealDistance = dialog.RealDistance;
+            _doc.Calibration.LinearUnit = dialog.Unit;
+            _doc.Calibration.AreaUnit = dialog.AreaUnit;
+            _doc.Calibration.ScaleLabel = dialog.ScaleLabel;
+
+            TxtStatus.Text = $"Scale calibrated: {dialog.PixelDistance:F1}px = {dialog.RealDistance:F2}{dialog.Unit}.";
+        }
 
         SetTool("Select");
         UpdateUiFromDoc();
@@ -1962,10 +2065,46 @@ public partial class MainWindow : Window
     {
         if (LbZones.SelectedItem is Zone zone)
         {
-            _selectedZone = zone;
-            _selectedObjects.Clear();
-            RedrawCanvas();
+            SelectZone(zone);
         }
+    }
+
+    private void SelectZone(Zone zone)
+    {
+        _selectedZone = zone;
+        _selectedObjects.Clear();
+        TxtZoneName.Text = zone.Name;
+        TxtZoneCode.Text = zone.Code;
+        ClearBimInspector();
+        RedrawCanvas();
+        TxtStatus.Text = $"Selected Zone: {zone.Name} ({zone.Code})";
+    }
+
+    private void BtnRenameZone_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedZone == null)
+        {
+            MessageBox.Show("Please select a zone from the list or layout to rename.", "Rename Zone", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string newName = TxtZoneName.Text.Trim();
+        string newCode = TxtZoneCode.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            MessageBox.Show("Zone name cannot be empty.", "Rename Zone", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _selectedZone.Name = newName;
+        if (!string.IsNullOrWhiteSpace(newCode))
+        {
+            _selectedZone.Code = newCode;
+        }
+
+        UpdateUiFromDoc();
+        TxtStatus.Text = $"Renamed zone to '{_selectedZone.Name}' ({_selectedZone.Code}).";
     }
 
     private void BtnDeleteZone_Click(object sender, RoutedEventArgs e)
@@ -1973,6 +2112,8 @@ public partial class MainWindow : Window
         if (_selectedZone == null) return;
         _doc.Zones.Remove(_selectedZone);
         _selectedZone = null;
+        TxtZoneName.Text = "";
+        TxtZoneCode.Text = "";
         UpdateUiFromDoc();
     }
 

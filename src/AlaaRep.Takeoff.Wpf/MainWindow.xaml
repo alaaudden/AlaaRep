@@ -88,10 +88,19 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Export & Calculate Group -->
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <!-- Theme Selector & Export Group -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <TextBlock Text="Theme:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CbThemeSelector" SelectionChanged="CbThemeSelector_SelectionChanged"
+                              Background="#0F172A" Foreground="White" BorderBrush="#334155" Width="90" Height="26" Margin="0,0,10,0" FontSize="11">
+                        <ComboBoxItem Content="Dark" IsSelected="True"/>
+                        <ComboBoxItem Content="Light"/>
+                        <ComboBoxItem Content="Desert"/>
+                        <ComboBoxItem Content="Sea"/>
+                    </ComboBox>
+
                     <Button x:Name="BtnCalculateQto" Content="Calculate QTO" Click="BtnCalculateQto_Click"
-                            Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="12,5" Margin="0,0,8,0"/>
+                            Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="10,5" Margin="0,0,8,0"/>
                     <Button x:Name="BtnExportCsv" Content="Export CSV" Click="BtnExportCsv_Click"
                             Background="#3B82F6" Foreground="White" BorderThickness="0" Padding="10,5"/>
                 </StackPanel>
@@ -194,7 +203,7 @@
                                 <Button Content="Assign Selected" Click="BtnAssignToSelectedNode_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="8,4" Margin="0,0,0,4" FontSize="11"/>
                             </WrapPanel>
 
-                            <!-- TreeView Display -->
+                            <!-- TreeView Display with Leaf Object Support -->
                             <TreeView x:Name="TvBimHierarchy" Grid.Row="2" SelectedItemChanged="TvBimHierarchy_SelectedItemChanged"
                                       Background="#0F172A" Foreground="White" BorderBrush="#334155">
                                 <TreeView.ItemTemplate>
@@ -202,22 +211,42 @@
                                         <Border Padding="3" Margin="1">
                                             <StackPanel Orientation="Horizontal">
                                                 <Border Background="#1E293B" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
-                                                    <TextBlock Text="{Binding NodeType}" Foreground="#38BDF8" FontSize="10" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding TypeLabel}" Foreground="#38BDF8" FontSize="10" FontWeight="SemiBold"/>
                                                 </Border>
                                                 <TextBlock Text="{Binding Name}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                                <TextBlock Text="{Binding Code, StringFormat=' ({0})'}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Code, StringFormat=' [{0}]'}" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </HierarchicalDataTemplate>
                                 </TreeView.ItemTemplate>
                             </TreeView>
 
-                            <!-- Selected Node Info -->
+                            <!-- Selected Node Editor (Rename, Code, Delete) -->
                             <Border Grid.Row="3" Background="#0F172A" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,8,0,0">
                                 <StackPanel>
-                                    <TextBlock x:Name="TxtSelectedTreeNodeInfo" Text="Select a tree node to view or assign objects" Foreground="#94A3B8" FontSize="11"/>
-                                    <Button x:Name="BtnDeleteTreeNode" Content="Delete Node" Click="BtnDeleteTreeNode_Click"
-                                            Background="#EF4444" Foreground="White" BorderThickness="0" Padding="8,4" Margin="0,6,0,0" HorizontalAlignment="Right" FontSize="11"/>
+                                    <TextBlock Text="NODE EDITOR" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Name:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0"/>
+                                        <TextBox x:Name="TxtTreeNodeName" Grid.Column="1" Background="#1E293B" Foreground="White" BorderBrush="#334155" Padding="3" FontSize="12"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Code:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="11" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtTreeNodeCode" Grid.Column="1" Background="#1E293B" Foreground="White" BorderBrush="#334155" Padding="3" FontSize="12"/>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="BtnDeleteTreeNode" Content="Delete Node" Click="BtnDeleteTreeNode_Click"
+                                                Background="#EF4444" Foreground="White" BorderThickness="0" Padding="8,4" Margin="0,0,6,0" FontSize="11"/>
+                                        <Button x:Name="BtnRenameTreeNode" Content="Save / Rename" Click="BtnRenameTreeNode_Click"
+                                                Background="#2563EB" Foreground="White" FontWeight="SemiBold" BorderThickness="0" Padding="10,4" FontSize="11"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </Grid>

@@ -161,4 +161,24 @@ public class TakeoffEngineTests
         var bldContained = bld.GetAllContainedObjectIds().ToList();
         Assert.Contains(obj1.Id, bldContained);
     }
+
+    [Fact]
+    public void BimHierarchy_NodeRenamingAndObjectAssociation()
+    {
+        var root = new BimHierarchyNode { Name = "Initial Building", Code = "B1" };
+        root.Name = "Renamed Building 42";
+        root.Code = "BLD-42";
+
+        Assert.Equal("Renamed Building 42", root.Name);
+        Assert.Equal("BLD-42", root.Code);
+
+        // Associate multiple objects
+        root.TakeoffObjectIds.Add("obj-101");
+        root.TakeoffObjectIds.Add("obj-102");
+
+        var allIds = root.GetAllContainedObjectIds().ToList();
+        Assert.Equal(2, allIds.Count);
+        Assert.Contains("obj-101", allIds);
+        Assert.Contains("obj-102", allIds);
+    }
 }

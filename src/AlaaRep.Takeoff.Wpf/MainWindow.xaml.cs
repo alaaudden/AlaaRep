@@ -52,7 +52,7 @@ public partial class MainWindow : Window
     // Observable collections for UI bindings
     public ObservableCollection<BimKeyValue> BimPropertiesList { get; } = new();
     public ObservableCollection<QtoDisplayRow> QtoRows { get; } = new();
-    public ObservableCollection<BimHierarchyNode> HierarchyTreeRoots { get; } = new();
+    public ObservableCollection<TreeItemViewModel> HierarchyTreeRoots { get; } = new();
 
     // Selected hierarchy node in tree view
     private BimHierarchyNode? _selectedTreeNode;
@@ -68,7 +68,24 @@ public partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        ThemeManager.ApplyTheme(this, AppTheme.Dark);
         ZoomFit();
+    }
+
+    private void CbThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CbThemeSelector.SelectedItem is ComboBoxItem item && item.Content is string themeName)
+        {
+            var theme = themeName switch
+            {
+                "Light" => AppTheme.Light,
+                "Desert" => AppTheme.Desert,
+                "Sea" => AppTheme.Sea,
+                _ => AppTheme.Dark
+            };
+            ThemeManager.ApplyTheme(this, theme);
+            RedrawCanvas();
+        }
     }
 
     private void LoadDefaultSample()
@@ -243,9 +260,9 @@ public partial class MainWindow : Window
         LbZones.ItemsSource = null;
         LbZones.ItemsSource = _doc.Zones;
 
-        // Refresh BIM Hierarchy Tree
+        // Refresh BIM Hierarchy Tree with Objects
         HierarchyTreeRoots.Clear();
-        HierarchyTreeRoots.Add(_doc.HierarchyRoot);
+        HierarchyTreeRoots.Add(TreeItemViewModel.FromNode(_doc.HierarchyRoot, _doc.TakeoffObjects));
 
         CalculateAndDisplayQto();
         RedrawCanvas();
@@ -254,22 +271,54 @@ public partial class MainWindow : Window
     // BIM Tree Actions
     private void TvBimHierarchy_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        if (e.NewValue is BimHierarchyNode node)
+        if (e.NewValue is TreeItemViewModel item)
         {
-            _selectedTreeNode = node;
-            var objectIds = node.GetAllContainedObjectIds().ToList();
-            TxtSelectedTreeNodeInfo.Text = $"Node: {node.Name} ({node.NodeType})\nContained Takeoff Items: {objectIds.Count}";
-
-            // Highlight all objects contained under this node
-            _selectedObjects.Clear();
-            foreach (var id in objectIds)
+            if (item.IsObjectLeaf && item.AssociatedObject != null)
             {
-                var found = _doc.TakeoffObjects.FirstOrDefault(o => o.Id == id);
-                if (found != null) _selectedObjects.Add(found);
+                // Single object clicked in tree: highlight on drawing and select in inspector
+                SelectObject(item.AssociatedObject);
+                TxtTreeNodeName.Text = item.AssociatedObject.Name;
+                TxtTreeNodeCode.Text = item.AssociatedObject.Category;
+                TxtStatus.Text = $"Tree Object Selected: {item.AssociatedObject.Name} ({item.AssociatedObject.Category})";
             }
+            else if (item.AssociatedNode != null)
+            {
+                _selectedTreeNode = item.AssociatedNode;
+                TxtTreeNodeName.Text = item.AssociatedNode.Name;
+                TxtTreeNodeCode.Text = item.AssociatedNode.Code ?? "";
 
-            UpdateBimInspector();
-            RedrawCanvas();
+                var objectIds = item.AssociatedNode.GetAllContainedObjectIds().ToList();
+
+                // Highlight all objects contained under this node
+                _selectedObjects.Clear();
+                foreach (var id in objectIds)
+                {
+                    var found = _doc.TakeoffObjects.FirstOrDefault(o => o.Id == id);
+                    if (found != null) _selectedObjects.Add(found);
+                }
+
+                UpdateBimInspector();
+                RedrawCanvas();
+                TxtStatus.Text = $"Tree Node Selected: {item.AssociatedNode.Name} ({item.AssociatedNode.NodeType}) with {objectIds.Count} items.";
+            }
+        }
+    }
+
+    private void BtnRenameTreeNode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTreeNode != null)
+        {
+            _selectedTreeNode.Name = TxtTreeNodeName.Text.Trim();
+            _selectedTreeNode.Code = TxtTreeNodeCode.Text.Trim();
+            UpdateUiFromDoc();
+            TxtStatus.Text = $"Renamed tree node to '{_selectedTreeNode.Name}'.";
+        }
+        else if (_selectedObject != null)
+        {
+            _selectedObject.Name = TxtTreeNodeName.Text.Trim();
+            _selectedObject.Category = TxtTreeNodeCode.Text.Trim();
+            UpdateUiFromDoc();
+            TxtStatus.Text = $"Updated object '{_selectedObject.Name}'.";
         }
     }
 

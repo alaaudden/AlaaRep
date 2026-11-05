@@ -52,12 +52,17 @@ public partial class MainWindow : Window
     // Observable collections for UI bindings
     public ObservableCollection<BimKeyValue> BimPropertiesList { get; } = new();
     public ObservableCollection<QtoDisplayRow> QtoRows { get; } = new();
+    public ObservableCollection<BimHierarchyNode> HierarchyTreeRoots { get; } = new();
+
+    // Selected hierarchy node in tree view
+    private BimHierarchyNode? _selectedTreeNode;
 
     public MainWindow()
     {
         InitializeComponent();
         DgBimProperties.ItemsSource = BimPropertiesList;
         DgQtoReport.ItemsSource = QtoRows;
+        TvBimHierarchy.ItemsSource = HierarchyTreeRoots;
         LoadDefaultSample();
     }
 
@@ -112,6 +117,21 @@ public partial class MainWindow : Window
         doc.Entities.Add(new DrawingEntity { Type = DrawingEntityType.Text, Text = "ZONE C - CONFERENCE", TextSize = 14, Points = new List<Point2D> { new(550, 150) }, ColorHex = "#94A3B8" });
         doc.Entities.Add(new DrawingEntity { Type = DrawingEntityType.Text, Text = "ZONE D - OPEN WORKSPACE", TextSize = 14, Points = new List<Point2D> { new(550, 500) }, ColorHex = "#94A3B8" });
 
+        // BIM Hierarchy Tree: Building -> Floor -> Discipline
+        var buildingA = new BimHierarchyNode { Name = "Main Tower Building", NodeType = HierarchyNodeType.Building, Code = "BLD-A" };
+        var floor01 = new BimHierarchyNode { Name = "Level 01 - Ground Floor", NodeType = HierarchyNodeType.Floor, Code = "LVL-01" };
+        var floor02 = new BimHierarchyNode { Name = "Level 02 - Executive Suites", NodeType = HierarchyNodeType.Floor, Code = "LVL-02" };
+        buildingA.AddChild(floor01);
+        buildingA.AddChild(floor02);
+
+        var arch01 = new BimHierarchyNode { Name = "Architectural Finishes", NodeType = HierarchyNodeType.Discipline, Code = "ARCH" };
+        var mep01 = new BimHierarchyNode { Name = "Mechanical & Fire", NodeType = HierarchyNodeType.Discipline, Code = "MEP" };
+        floor01.AddChild(arch01);
+        floor01.AddChild(mep01);
+
+        doc.HierarchyRoot.Children.Clear();
+        doc.HierarchyRoot.AddChild(buildingA);
+
         // Specific Zones
         doc.Zones.Add(new Zone
         {
@@ -157,9 +177,14 @@ public partial class MainWindow : Window
             Name = "Engineered Oak Flooring",
             Category = "Finishes",
             MeasurementType = TakeoffMeasurementType.Area,
+            Building = "Main Tower Building",
+            Floor = "Level 01 - Ground Floor",
+            Discipline = "Architectural",
+            HierarchyNodeId = arch01.Id,
             ColorHex = "#D97706",
             GeometryPoints = new List<Point2D> { new(120, 120), new(480, 120), new(480, 380), new(120, 380) }
         };
+        arch01.TakeoffObjectIds.Add(oakFloor.Id);
         oakFloor.SetBimProperty("Family", "Floor:Wood Finish");
         oakFloor.SetBimProperty("Omniclass", "23-14 17 00 Flooring");
         oakFloor.SetBimProperty("Material", "Engineered White Oak");
@@ -172,9 +197,14 @@ public partial class MainWindow : Window
             Name = "Drywall Partition STC 52",
             Category = "Partitions",
             MeasurementType = TakeoffMeasurementType.Length,
+            Building = "Main Tower Building",
+            Floor = "Level 01 - Ground Floor",
+            Discipline = "Architectural",
+            HierarchyNodeId = arch01.Id,
             ColorHex = "#EF4444",
             GeometryPoints = new List<Point2D> { new(150, 400), new(450, 400), new(750, 450), new(1050, 450) }
         };
+        arch01.TakeoffObjectIds.Add(wallPartition.Id);
         wallPartition.SetBimProperty("Family", "Wall:Basic Wall Interior");
         wallPartition.SetBimProperty("Omniclass", "23-13 25 11 Drywall");
         wallPartition.SetBimProperty("UnitCost", "65.00");
@@ -186,6 +216,10 @@ public partial class MainWindow : Window
             Name = "Pendant Sprinkler Head",
             Category = "Fire Protection",
             MeasurementType = TakeoffMeasurementType.Count,
+            Building = "Main Tower Building",
+            Floor = "Level 01 - Ground Floor",
+            Discipline = "Fire Protection",
+            HierarchyNodeId = mep01.Id,
             ColorHex = "#DC2626",
             GeometryPoints = new List<Point2D>
             {
@@ -193,6 +227,7 @@ public partial class MainWindow : Window
                 new(650, 220), new(900, 220), new(650, 580), new(800, 580), new(950, 580)
             }
         };
+        mep01.TakeoffObjectIds.Add(sprinklers.Id);
         sprinklers.SetBimProperty("Family", "FireProtection:Sprinkler");
         sprinklers.SetBimProperty("Omniclass", "23-35 15 11");
         sprinklers.SetBimProperty("UnitCost", "120.00");
@@ -208,8 +243,164 @@ public partial class MainWindow : Window
         LbZones.ItemsSource = null;
         LbZones.ItemsSource = _doc.Zones;
 
+        // Refresh BIM Hierarchy Tree
+        HierarchyTreeRoots.Clear();
+        HierarchyTreeRoots.Add(_doc.HierarchyRoot);
+
         CalculateAndDisplayQto();
         RedrawCanvas();
+    }
+
+    // BIM Tree Actions
+    private void TvBimHierarchy_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    {
+        if (e.NewValue is BimHierarchyNode node)
+        {
+            _selectedTreeNode = node;
+            var objectIds = node.GetAllContainedObjectIds().ToList();
+            TxtSelectedTreeNodeInfo.Text = $"Node: {node.Name} ({node.NodeType})\nContained Takeoff Items: {objectIds.Count}";
+
+            // Highlight all objects contained under this node
+            _selectedObjects.Clear();
+            foreach (var id in objectIds)
+            {
+                var found = _doc.TakeoffObjects.FirstOrDefault(o => o.Id == id);
+                if (found != null) _selectedObjects.Add(found);
+            }
+
+            UpdateBimInspector();
+            RedrawCanvas();
+        }
+    }
+
+    private void BtnAddBuilding_Click(object sender, RoutedEventArgs e)
+    {
+        var targetNode = _selectedTreeNode ?? _doc.HierarchyRoot;
+        int count = targetNode.Children.Count(c => c.NodeType == HierarchyNodeType.Building) + 1;
+        var building = new BimHierarchyNode
+        {
+            Name = $"Building {count}",
+            NodeType = HierarchyNodeType.Building,
+            Code = $"BLD-{count:00}"
+        };
+        targetNode.AddChild(building);
+        UpdateUiFromDoc();
+    }
+
+    private void BtnAddFloor_Click(object sender, RoutedEventArgs e)
+    {
+        var targetNode = (_selectedTreeNode?.NodeType == HierarchyNodeType.Building)
+            ? _selectedTreeNode
+            : (_doc.HierarchyRoot.Children.FirstOrDefault(c => c.NodeType == HierarchyNodeType.Building) ?? _doc.HierarchyRoot);
+
+        int count = targetNode.Children.Count(c => c.NodeType == HierarchyNodeType.Floor) + 1;
+        var floor = new BimHierarchyNode
+        {
+            Name = $"Level {count:00}",
+            NodeType = HierarchyNodeType.Floor,
+            Code = $"LVL-{count:00}"
+        };
+        targetNode.AddChild(floor);
+        UpdateUiFromDoc();
+    }
+
+    private void BtnAddDiscipline_Click(object sender, RoutedEventArgs e)
+    {
+        var targetNode = _selectedTreeNode ?? _doc.HierarchyRoot;
+        string[] disciplines = { "Architectural", "Structural", "Mechanical", "Electrical", "Plumbing", "Fire Protection" };
+        int idx = targetNode.Children.Count % disciplines.Length;
+        string disc = disciplines[idx];
+
+        var discNode = new BimHierarchyNode
+        {
+            Name = $"{disc} Works",
+            NodeType = HierarchyNodeType.Discipline,
+            Code = disc.Substring(0, 3).ToUpper()
+        };
+        targetNode.AddChild(discNode);
+        UpdateUiFromDoc();
+    }
+
+    private void BtnAssignToSelectedNode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTreeNode == null)
+        {
+            MessageBox.Show("Please select a node in the BIM Tree first.", "BIM Hierarchy", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_selectedObjects.Count == 0)
+        {
+            MessageBox.Show("Please select one or more takeoff objects on the drawing or list to assign.", "BIM Hierarchy", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        foreach (var obj in _selectedObjects)
+        {
+            // Remove from any prior node
+            RemoveObjectFromHierarchyTree(_doc.HierarchyRoot, obj.Id);
+
+            // Assign to selected node
+            if (!_selectedTreeNode.TakeoffObjectIds.Contains(obj.Id))
+            {
+                _selectedTreeNode.TakeoffObjectIds.Add(obj.Id);
+            }
+            obj.HierarchyNodeId = _selectedTreeNode.Id;
+
+            // Set BIM properties according to node path
+            SetNodePathProperties(obj, _selectedTreeNode);
+        }
+
+        UpdateUiFromDoc();
+        MessageBox.Show($"Assigned {_selectedObjects.Count} object(s) to '{_selectedTreeNode.Name}' ({_selectedTreeNode.NodeType})!", "Assigned", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void SetNodePathProperties(TakeoffObject obj, BimHierarchyNode node)
+    {
+        if (node.NodeType == HierarchyNodeType.Building) obj.Building = node.Name;
+        if (node.NodeType == HierarchyNodeType.Floor) obj.Floor = node.Name;
+        if (node.NodeType == HierarchyNodeType.Discipline) obj.Discipline = node.Name;
+
+        // Traverse up to root to populate building and floor
+        var cur = node;
+        while (cur != null && !string.IsNullOrEmpty(cur.ParentId))
+        {
+            var parent = _doc.HierarchyRoot.FindNode(cur.ParentId);
+            if (parent != null)
+            {
+                if (parent.NodeType == HierarchyNodeType.Building) obj.Building = parent.Name;
+                if (parent.NodeType == HierarchyNodeType.Floor) obj.Floor = parent.Name;
+                if (parent.NodeType == HierarchyNodeType.Discipline) obj.Discipline = parent.Name;
+            }
+            cur = parent;
+        }
+
+        if (!string.IsNullOrEmpty(obj.Building)) obj.SetBimProperty("Building", obj.Building);
+        if (!string.IsNullOrEmpty(obj.Floor)) obj.SetBimProperty("Floor", obj.Floor);
+        if (!string.IsNullOrEmpty(obj.Discipline)) obj.SetBimProperty("Discipline", obj.Discipline);
+    }
+
+    private static void RemoveObjectFromHierarchyTree(BimHierarchyNode node, string objId)
+    {
+        node.TakeoffObjectIds.Remove(objId);
+        foreach (var child in node.Children)
+        {
+            RemoveObjectFromHierarchyTree(child, objId);
+        }
+    }
+
+    private void BtnDeleteTreeNode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTreeNode == null || _selectedTreeNode == _doc.HierarchyRoot) return;
+
+        // Remove from parent
+        var parent = _doc.HierarchyRoot.FindNode(_selectedTreeNode.ParentId ?? "");
+        if (parent != null)
+        {
+            parent.Children.Remove(_selectedTreeNode);
+            _selectedTreeNode = null;
+            UpdateUiFromDoc();
+        }
     }
 
     // Precise coordinate conversion: screen pixel point to drawing coordinates
@@ -1196,6 +1387,16 @@ public partial class MainWindow : Window
         QtoRows.Clear();
         foreach (var item in report.Items)
         {
+            var rawObj = _doc.TakeoffObjects.FirstOrDefault(o => o.Id == item.ObjectId);
+            string hier = "";
+            if (rawObj != null)
+            {
+                var parts = new List<string>();
+                if (!string.IsNullOrEmpty(rawObj.Floor)) parts.Add(rawObj.Floor.Replace("Level ", "L"));
+                if (!string.IsNullOrEmpty(rawObj.Discipline)) parts.Add(rawObj.Discipline.Length > 4 ? rawObj.Discipline.Substring(0, 4) : rawObj.Discipline);
+                hier = string.Join(" / ", parts);
+            }
+
             if (item.ZoneBreakdowns.Count > 0)
             {
                 foreach (var zb in item.ZoneBreakdowns)
@@ -1209,6 +1410,7 @@ public partial class MainWindow : Window
                     QtoRows.Add(new QtoDisplayRow
                     {
                         ItemName = item.Name,
+                        HierarchyPath = hier,
                         ZoneName = zb.ZoneName,
                         QuantityStr = qtyStr,
                         CostStr = $"${zb.Cost:F2}"
@@ -1226,6 +1428,7 @@ public partial class MainWindow : Window
                 QtoRows.Add(new QtoDisplayRow
                 {
                     ItemName = item.Name,
+                    HierarchyPath = hier,
                     ZoneName = "Unassigned",
                     QuantityStr = qtyStr,
                     CostStr = $"${item.TotalCost:F2}"
@@ -1525,6 +1728,7 @@ public class BimKeyValue
 public class QtoDisplayRow
 {
     public string ItemName { get; set; } = string.Empty;
+    public string HierarchyPath { get; set; } = string.Empty;
     public string ZoneName { get; set; } = string.Empty;
     public string QuantityStr { get; set; } = string.Empty;
     public string CostStr { get; set; } = string.Empty;

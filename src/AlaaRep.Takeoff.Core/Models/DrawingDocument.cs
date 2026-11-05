@@ -13,4 +13,12 @@ public class DrawingDocument
     public List<TakeoffObject> TakeoffObjects { get; set; } = new();
     public ScaleCalibration Calibration { get; set; } = new();
     public string? BackgroundDataUrl { get; set; }
+
+    // BIM Project Hierarchy Tree (Project -> Building -> Floor -> Discipline -> Objects)
+    public BimHierarchyNode HierarchyRoot { get; set; } = new()
+    {
+        Name = "Project Site",
+        NodeType = HierarchyNodeType.Project,
+        Code = "PRJ-01"
+    };
 }

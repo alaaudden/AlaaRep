@@ -123,4 +123,42 @@ public class TakeoffEngineTests
         Assert.Equal("Gypsum", clone.GetBimProperty("Material"));
         Assert.Equal("35.00", clone.GetBimProperty("UnitCost"));
     }
+
+    [Fact]
+    public void BimHierarchy_RollupAndObjectAssignment_CalculatesCostsPerHierarchyLevel()
+    {
+        var doc = new DrawingDocument();
+
+        var bld = new BimHierarchyNode { Name = "HQ Tower", NodeType = HierarchyNodeType.Building };
+        var floor = new BimHierarchyNode { Name = "Floor 3", NodeType = HierarchyNodeType.Floor };
+        var disc = new BimHierarchyNode { Name = "HVAC", NodeType = HierarchyNodeType.Discipline };
+        bld.AddChild(floor);
+        floor.AddChild(disc);
+        doc.HierarchyRoot.AddChild(bld);
+
+        var obj1 = new TakeoffObject
+        {
+            Name = "Air Diffuser",
+            MeasurementType = TakeoffMeasurementType.Count,
+            Building = "HQ Tower",
+            Floor = "Floor 3",
+            Discipline = "HVAC",
+            HierarchyNodeId = disc.Id,
+            GeometryPoints = new List<Point2D> { new(10, 10), new(20, 20) } // 2 diffusers
+        };
+        obj1.SetBimProperty("UnitCost", "100.00"); // 2 * 100 = $200
+        disc.TakeoffObjectIds.Add(obj1.Id);
+        doc.TakeoffObjects.Add(obj1);
+
+        var engine = new TakeoffEngine();
+        var report = engine.CalculateReport(doc);
+
+        Assert.Equal(200.0, report.QuantitiesByBuilding["HQ Tower"]);
+        Assert.Equal(200.0, report.QuantitiesByFloor["Floor 3"]);
+        Assert.Equal(200.0, report.QuantitiesByDiscipline["HVAC"]);
+
+        // Verify GetAllContainedObjectIds
+        var bldContained = bld.GetAllContainedObjectIds().ToList();
+        Assert.Contains(obj1.Id, bldContained);
+    }
 }

@@ -61,4 +61,7 @@ public class QuantityReport
     public List<TakeoffItemSummary> Items { get; set; } = new();
     public List<ZoneQuantitySummary> Zones { get; set; } = new();
     public Dictionary<string, double> QuantitiesByCategory { get; set; } = new();
+    public Dictionary<string, double> QuantitiesByBuilding { get; set; } = new();
+    public Dictionary<string, double> QuantitiesByFloor { get; set; } = new();
+    public Dictionary<string, double> QuantitiesByDiscipline { get; set; } = new();
 }

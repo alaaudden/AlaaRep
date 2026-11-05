@@ -15,6 +15,10 @@ public class TakeoffObject
     public string Category { get; set; } = "General";
     public TakeoffMeasurementType MeasurementType { get; set; } = TakeoffMeasurementType.Area;
     public string? ZoneId { get; set; }
+    public string? HierarchyNodeId { get; set; } // Position on the Building/Floor/Discipline tree
+    public string? Building { get; set; }
+    public string? Floor { get; set; }
+    public string? Discipline { get; set; }
     public string? ColorHex { get; set; } = "#3B82F6";
     public double Opacity { get; set; } = 0.4;
     public double StrokeWidth { get; set; } = 2.0;

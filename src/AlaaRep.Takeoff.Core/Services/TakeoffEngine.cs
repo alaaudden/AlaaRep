@@ -98,6 +98,20 @@ public class TakeoffEngine
                 _ => itemSummary.TotalArea
             };
             report.QuantitiesByCategory[cat] = report.QuantitiesByCategory.GetValueOrDefault(cat) + catVal;
+
+            // Hierarchy Rollups (Building, Floor, Discipline)
+            if (!string.IsNullOrWhiteSpace(obj.Building))
+            {
+                report.QuantitiesByBuilding[obj.Building] = report.QuantitiesByBuilding.GetValueOrDefault(obj.Building) + itemSummary.TotalCost;
+            }
+            if (!string.IsNullOrWhiteSpace(obj.Floor))
+            {
+                report.QuantitiesByFloor[obj.Floor] = report.QuantitiesByFloor.GetValueOrDefault(obj.Floor) + itemSummary.TotalCost;
+            }
+            if (!string.IsNullOrWhiteSpace(obj.Discipline))
+            {
+                report.QuantitiesByDiscipline[obj.Discipline] = report.QuantitiesByDiscipline.GetValueOrDefault(obj.Discipline) + itemSummary.TotalCost;
+            }
         }
 
         report.GrandTotalLength = Math.Round(report.GrandTotalLength, 3);

@@ -260,12 +260,85 @@ public partial class MainWindow : Window
         LbZones.ItemsSource = null;
         LbZones.ItemsSource = _doc.Zones;
 
-        // Refresh BIM Hierarchy Tree with Objects
+        // Refresh BIM Hierarchy Tree with Objects & Live Geometry Summaries
         HierarchyTreeRoots.Clear();
-        HierarchyTreeRoots.Add(TreeItemViewModel.FromNode(_doc.HierarchyRoot, _doc.TakeoffObjects));
+        HierarchyTreeRoots.Add(TreeItemViewModel.FromNode(_doc.HierarchyRoot, _doc.TakeoffObjects, _doc.Calibration));
 
         CalculateAndDisplayQto();
         RedrawCanvas();
+    }
+
+    // Node Level / Hierarchy Re-parenting Methods
+    private void BtnIndentNode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTreeNode == null || _selectedTreeNode == _doc.HierarchyRoot) return;
+
+        // Find parent and index of selected node among siblings
+        var parent = _doc.HierarchyRoot.FindNode(_selectedTreeNode.ParentId ?? "");
+        if (parent == null) return;
+
+        int index = parent.Children.IndexOf(_selectedTreeNode);
+        if (index > 0)
+        {
+            var newParent = parent.Children[index - 1];
+            parent.Children.RemoveAt(index);
+            newParent.AddChild(_selectedTreeNode);
+            UpdateUiFromDoc();
+            TxtStatus.Text = $"Indented '{_selectedTreeNode.Name}' to become child of '{newParent.Name}'.";
+        }
+    }
+
+    private void BtnOutdentNode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTreeNode == null || _selectedTreeNode == _doc.HierarchyRoot) return;
+
+        var parent = _doc.HierarchyRoot.FindNode(_selectedTreeNode.ParentId ?? "");
+        if (parent == null || parent == _doc.HierarchyRoot) return;
+
+        var grandParent = _doc.HierarchyRoot.FindNode(parent.ParentId ?? "");
+        if (grandParent != null)
+        {
+            parent.Children.Remove(_selectedTreeNode);
+            grandParent.AddChild(_selectedTreeNode);
+            UpdateUiFromDoc();
+            TxtStatus.Text = $"Outdented '{_selectedTreeNode.Name}' to level under '{grandParent.Name}'.";
+        }
+    }
+
+    private void BtnChangeParent_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTreeNode == null || _selectedTreeNode == _doc.HierarchyRoot)
+        {
+            MessageBox.Show("Please select a node in the BIM Tree to change its parent.", "Change Parent", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Collect candidate parent nodes (all nodes except self and descendants)
+        var candidates = new List<BimHierarchyNode>();
+        void Collect(BimHierarchyNode node)
+        {
+            if (node.Id != _selectedTreeNode.Id)
+            {
+                candidates.Add(node);
+                foreach (var c in node.Children)
+                {
+                    if (c.Id != _selectedTreeNode.Id) Collect(c);
+                }
+            }
+        }
+        Collect(_doc.HierarchyRoot);
+
+        if (candidates.Count == 0) return;
+
+        // Change to next candidate or root
+        var currentParent = _doc.HierarchyRoot.FindNode(_selectedTreeNode.ParentId ?? "");
+        int curIdx = currentParent != null ? candidates.IndexOf(currentParent) : 0;
+        var nextParent = candidates[(curIdx + 1) % candidates.Count];
+
+        if (currentParent != null) currentParent.Children.Remove(_selectedTreeNode);
+        nextParent.AddChild(_selectedTreeNode);
+        UpdateUiFromDoc();
+        TxtStatus.Text = $"Re-parented '{_selectedTreeNode.Name}' under '{nextParent.Name}' ({nextParent.NodeType}).";
     }
 
     // BIM Tree Actions

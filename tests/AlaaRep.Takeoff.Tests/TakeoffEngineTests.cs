@@ -181,4 +181,28 @@ public class TakeoffEngineTests
         Assert.Contains("obj-101", allIds);
         Assert.Contains("obj-102", allIds);
     }
+
+    [Fact]
+    public void BimHierarchy_Reparenting_ChangesNodeParentAndChildren()
+    {
+        var root = new BimHierarchyNode { Name = "Root", Id = "root" };
+        var bld1 = new BimHierarchyNode { Name = "Bld 1", Id = "b1" };
+        var bld2 = new BimHierarchyNode { Name = "Bld 2", Id = "b2" };
+        var floor = new BimHierarchyNode { Name = "Floor 1", Id = "f1" };
+
+        root.AddChild(bld1);
+        root.AddChild(bld2);
+        bld1.AddChild(floor);
+
+        Assert.Equal("b1", floor.ParentId);
+        Assert.Contains(floor, bld1.Children);
+
+        // Re-parent floor from bld1 to bld2
+        bld1.Children.Remove(floor);
+        bld2.AddChild(floor);
+
+        Assert.Equal("b2", floor.ParentId);
+        Assert.Contains(floor, bld2.Children);
+        Assert.DoesNotContain(floor, bld1.Children);
+    }
 }

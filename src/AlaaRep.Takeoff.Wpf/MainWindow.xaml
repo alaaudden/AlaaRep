@@ -296,19 +296,25 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
                                     <TextBox x:Name="TxtPropName" Grid.Row="0" Grid.Column="1" Background="#0F172A" Foreground="White" BorderBrush="#334155" Padding="4" Margin="0,2"/>
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Category:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
-                                    <TextBox x:Name="TxtPropCategory" Grid.Row="1" Grid.Column="1" Background="#0F172A" Foreground="White" BorderBrush="#334155" Padding="4" Margin="0,2"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Layer:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
+                                    <ComboBox x:Name="CbObjectLayer" Grid.Row="1" Grid.Column="1"
+                                              Background="#0F172A" Foreground="White" BorderBrush="#334155"
+                                              Margin="0,2" SelectionChanged="CbObjectLayer_SelectionChanged"/>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Type:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
-                                    <TextBox x:Name="TxtPropType" Grid.Row="2" Grid.Column="1" Background="#0F172A" Foreground="#38BDF8" IsReadOnly="True" BorderBrush="#334155" Padding="4" Margin="0,2"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Category:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
+                                    <TextBox x:Name="TxtPropCategory" Grid.Row="2" Grid.Column="1" Background="#0F172A" Foreground="White" BorderBrush="#334155" Padding="4" Margin="0,2"/>
 
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Quantity:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
-                                    <TextBox x:Name="TxtPropQuantity" Grid.Row="3" Grid.Column="1" Background="#0F172A" Foreground="#10B981" FontWeight="Bold" IsReadOnly="True" BorderBrush="#334155" Padding="4" Margin="0,2"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Type:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
+                                    <TextBox x:Name="TxtPropType" Grid.Row="3" Grid.Column="1" Background="#0F172A" Foreground="#38BDF8" IsReadOnly="True" BorderBrush="#334155" Padding="4" Margin="0,2"/>
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Quantity:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
+                                    <TextBox x:Name="TxtPropQuantity" Grid.Row="4" Grid.Column="1" Background="#0F172A" Foreground="#10B981" FontWeight="Bold" IsReadOnly="True" BorderBrush="#334155" Padding="4" Margin="0,2"/>
                                 </Grid>
 
                                 <!-- Color & Transparency Controls -->
@@ -559,7 +565,12 @@
         <Border Grid.Row="2" Background="#0F172A" BorderBrush="#334155" BorderThickness="0,1,0,0" Padding="12,4">
             <DockPanel LastChildFill="False">
                 <TextBlock x:Name="TxtStatus" Text="Ready" Foreground="#94A3B8" FontSize="11" DockPanel.Dock="Left"/>
-                <TextBlock x:Name="TxtCursorCoords" Text="X: 0, Y: 0" Foreground="#64748B" FontSize="11" DockPanel.Dock="Right"/>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <CheckBox x:Name="ChkGpuAcceleration" Content="⚡ GPU Acceleration (Max FPS)" IsChecked="True"
+                              Checked="ChkGpuAcceleration_Changed" Unchecked="ChkGpuAcceleration_Changed"
+                              Foreground="#38BDF8" FontSize="11" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtCursorCoords" Text="X: 0, Y: 0" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
+                </StackPanel>
             </DockPanel>
         </Border>
     </Grid>

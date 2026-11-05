@@ -1674,6 +1674,9 @@ public partial class MainWindow : Window
         TxtPropCategory.Text = obj.Category;
         TxtPropType.Text = _selectedObjects.Count == 1 ? obj.MeasurementType.ToString() : "Mixed";
 
+        // Refresh and select layer in CbObjectLayer dropdown
+        RefreshObjectLayerDropdown(obj.Layer);
+
         double scale = _doc.Calibration.UnitsPerCoordinate;
         if (_selectedObjects.Count == 1)
         {
@@ -1763,12 +1766,53 @@ public partial class MainWindow : Window
         RedrawCanvas();
     }
 
+    private bool _isUpdatingLayerDropdown;
+    private void RefreshObjectLayerDropdown(string currentLayer)
+    {
+        if (CbObjectLayer == null) return;
+        _isUpdatingLayerDropdown = true;
+        try
+        {
+            var layers = LayersList.Select(l => l.Name).Distinct().ToList();
+            if (!string.IsNullOrEmpty(currentLayer) && !layers.Contains(currentLayer))
+            {
+                layers.Add(currentLayer);
+            }
+            CbObjectLayer.ItemsSource = layers;
+            CbObjectLayer.SelectedItem = currentLayer;
+        }
+        finally
+        {
+            _isUpdatingLayerDropdown = false;
+        }
+    }
+
+    private void CbObjectLayer_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingLayerDropdown) return;
+        if (CbObjectLayer.SelectedItem is string selectedLayer && _selectedObjects.Count > 0)
+        {
+            foreach (var obj in _selectedObjects)
+            {
+                obj.Layer = selectedLayer;
+            }
+            if (TxtPropCategory != null) TxtPropCategory.Text = selectedLayer;
+            if (!_layerVisibility.ContainsKey(selectedLayer))
+            {
+                _layerVisibility[selectedLayer] = true;
+            }
+            UpdateUiFromDoc();
+            TxtStatus.Text = $"Changed layer to '{selectedLayer}'.";
+        }
+    }
+
     private void ClearBimInspector()
     {
         TxtPropName.Text = "";
         TxtPropCategory.Text = "";
         TxtPropType.Text = "";
         TxtPropQuantity.Text = "";
+        if (CbObjectLayer != null) CbObjectLayer.SelectedItem = null;
         BimPropertiesList.Clear();
     }
 
@@ -2021,7 +2065,15 @@ public partial class MainWindow : Window
     {
         if (_selectedObject == null) return;
         _selectedObject.Name = TxtPropName.Text;
-        _selectedObject.Category = TxtPropCategory.Text;
+        if (CbObjectLayer.SelectedItem is string chosenLayer && !string.IsNullOrWhiteSpace(chosenLayer))
+        {
+            _selectedObject.Layer = chosenLayer;
+        }
+        else
+        {
+            _selectedObject.Layer = TxtPropCategory.Text;
+        }
+        _selectedObject.Category = _selectedObject.Layer;
 
         _selectedObject.BimProperties.Clear();
         foreach (var kvp in BimPropertiesList)
@@ -2212,6 +2264,17 @@ public partial class MainWindow : Window
         _showZones = !_showZones;
         BtnToggleZones.Content = _showZones ? "Zones (On)" : "Zones (Off)";
         RedrawCanvas();
+    }
+
+    private void ChkGpuAcceleration_Changed(object sender, RoutedEventArgs e)
+    {
+        if (FastCanvas != null && ChkGpuAcceleration != null)
+        {
+            bool isGpu = ChkGpuAcceleration.IsChecked == true;
+            FastCanvas.GpuAccelerationEnabled = isGpu;
+            TxtStatus.Text = isGpu ? "GPU Hardware Acceleration Enabled (DirectX / BitmapCache)" : "Software Rendering Mode (CPU Fallback)";
+            RedrawCanvas();
+        }
     }
 
     private static SolidColorBrush ParseColor(string hex)

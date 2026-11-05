@@ -10,9 +10,23 @@ public enum TakeoffMeasurementType
 
 public class TakeoffObject
 {
+    private string _layer = "General";
+
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = "New Takeoff Item";
     public string Category { get; set; } = "General";
+
+    public string Layer
+    {
+        get => !string.IsNullOrEmpty(_layer) ? _layer : Category;
+        set
+        {
+            _layer = value;
+            Category = value;
+            BimProperties["Layer"] = value;
+        }
+    }
+
     public TakeoffMeasurementType MeasurementType { get; set; } = TakeoffMeasurementType.Area;
     public string? ZoneId { get; set; }
     public string? HierarchyNodeId { get; set; } // Position on the Building/Floor/Discipline tree
@@ -56,6 +70,7 @@ public class TakeoffObject
         {
             Id = Guid.NewGuid().ToString("N"),
             Name = $"{Name} (Copy)",
+            Layer = Layer,
             Category = Category,
             MeasurementType = MeasurementType,
             ZoneId = ZoneId,

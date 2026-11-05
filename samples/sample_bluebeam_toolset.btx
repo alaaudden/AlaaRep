@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ToolSet Name="Architectural &amp; MEP BIM Takeoff" Version="2.0">
+  <Tools>
+    <Tool Subject="Structural Concrete Column" Label="C1 500x500mm Column" Type="Count" Space="Zone A - Entrance" Layer="STRUCT-COLS" Color="#2563EB">
+      <Property Key="Material" Value="C35/45 Reinforced Concrete" />
+      <Property Key="RebarRatio" Value="1.8%" />
+      <Location>200 150</Location>
+    </Tool>
+    <Tool Subject="Structural Concrete Column" Label="C2 500x500mm Column" Type="Count" Space="Zone A - Entrance" Layer="STRUCT-COLS" Color="#2563EB">
+      <Property Key="Material" Value="C35/45 Reinforced Concrete" />
+      <Property Key="RebarRatio" Value="1.8%" />
+      <Location>350 150</Location>
+    </Tool>
+    <Tool Subject="Fire Rated Glass Partition" Label="CW-01 Double Glazed" Type="Length" Space="Zone B - Corridor" Layer="ARCH-GLAZING" Color="#0D9488">
+      <Property Key="STC" Value="48" />
+      <Property Key="GlassType" Value="Laminated Low-E" />
+      <Coordinates>120 180; 380 180</Coordinates>
+    </Tool>
+    <Tool Subject="Raised Access Flooring" Label="RAF Data Center Grade" Type="Area" Space="Zone B - Corridor" Layer="ARCH-FLOOR" Color="#16A34A">
+      <Property Key="LoadClass" Value="Heavy Duty 12kN" />
+      <Property Key="Finish" Value="Anti-static Vinyl" />
+      <Coordinates>150 200; 350 200; 350 320; 150 320</Coordinates>
+    </Tool>
+    <Tool Subject="LED Linear Troffer 1200mm" Label="Fixture Type L1" Type="Count" Space="Zone A - Entrance" Layer="ELEC-LIGHTING" Color="#EAB308">
+      <Property Key="Wattage" Value="36W" />
+      <Property Key="CCT" Value="4000K" />
+      <Location>220 220</Location>
+    </Tool>
+  </Tools>
+</ToolSet>

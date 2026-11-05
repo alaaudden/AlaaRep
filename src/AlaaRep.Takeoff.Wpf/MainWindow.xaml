@@ -102,32 +102,36 @@
 
             <!-- Center Drawing Viewport -->
             <Border Grid.Column="0" Background="#060913" ClipToBounds="True" Focusable="True">
-                <Grid x:Name="ViewportGrid"
-                      Background="{StaticResource CadGridTileBrush}"
-                      PreviewMouseDown="Viewport_MouseDown"
-                      MouseMove="Viewport_MouseMove"
-                      MouseUp="Viewport_MouseUp"
-                      MouseWheel="Viewport_MouseWheel">
+                <Grid>
+                    <!-- Viewport Interactive Grid for Pan, Zoom, and Drawing -->
+                    <Grid x:Name="ViewportGrid"
+                          Background="{StaticResource CadGridTileBrush}"
+                          MouseDown="Viewport_MouseDown"
+                          MouseMove="Viewport_MouseMove"
+                          MouseUp="Viewport_MouseUp"
+                          MouseWheel="Viewport_MouseWheel">
 
-                    <!-- Zoom & Pan Canvas Container (Infinite size, no clipping) -->
-                    <Canvas x:Name="CanvasContainer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
-                        <Canvas.RenderTransform>
-                            <TransformGroup>
-                                <ScaleTransform x:Name="CanvasScale" ScaleX="1" ScaleY="1"/>
-                                <TranslateTransform x:Name="CanvasTranslate" X="50" Y="50"/>
-                            </TransformGroup>
-                        </Canvas.RenderTransform>
+                        <!-- Zoom & Pan Canvas Container (Infinite size, no clipping) -->
+                        <Canvas x:Name="CanvasContainer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
+                            <Canvas.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="CanvasScale" ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform x:Name="CanvasTranslate" X="50" Y="50"/>
+                                </TransformGroup>
+                            </Canvas.RenderTransform>
 
-                        <!-- Fast Direct Drawing Surface (Hardware Visual Context, Infinite) -->
-                        <local:FastDrawingCanvas x:Name="FastCanvas" IsHitTestVisible="False"/>
+                            <!-- Fast Direct Drawing Surface (Hardware Visual Context, Infinite) -->
+                            <local:FastDrawingCanvas x:Name="FastCanvas" IsHitTestVisible="False"/>
 
-                        <!-- Interactive In-Progress Preview Layer (Rubberband, Selection Marquee, Handles) -->
-                        <Canvas x:Name="PreviewCanvas" IsHitTestVisible="False"/>
-                    </Canvas>
+                            <!-- Interactive In-Progress Preview Layer (Rubberband, Selection Marquee, Handles) -->
+                            <Canvas x:Name="PreviewCanvas" IsHitTestVisible="False"/>
+                        </Canvas>
+                    </Grid>
 
-                    <!-- Viewport Floating HUD -->
+                    <!-- Viewport Floating HUD (Overlay on top of ViewportGrid) -->
                     <Border Background="#CC1E293B" CornerRadius="6" BorderBrush="#334155" BorderThickness="1"
-                            HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14" Padding="10,6">
+                            HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14" Padding="10,6"
+                            IsHitTestVisible="True">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Scale: " Foreground="#94A3B8" FontSize="11"/>
                             <TextBlock x:Name="TxtScaleHud" Text="1:100 (100px = 5.0m)" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="11" Margin="0,0,12,0"/>
@@ -136,16 +140,16 @@
                             <TextBlock x:Name="TxtPromptHud" Text="" Foreground="#F59E0B" FontWeight="Bold" FontSize="11" Margin="0,0,12,0"/>
                             <TextBlock x:Name="TxtSnapHud" Text="" Foreground="#34D399" FontWeight="Bold" FontSize="11" Margin="0,0,12,0"/>
                             <Button x:Name="BtnFinishShapeHud" Content="Finish Shape (Enter)" Click="BtnFinishShapeHud_Click" Visibility="Collapsed"
-                                    Background="#10B981" Foreground="White" FontWeight="Bold" FontSize="11" Padding="8,2" BorderThickness="0"/>
+                                    Background="#10B981" Foreground="White" FontWeight="Bold" FontSize="11" Padding="8,2" BorderThickness="0" Cursor="Hand"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Viewport Zoom Controls -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="14">
-                        <Button Content="+" Click="BtnZoomIn_Click" Width="30" Height="30" Background="#1E293B" Foreground="White" BorderBrush="#334155" Margin="0,0,4,0"/>
-                        <Button Content="-" Click="BtnZoomOut_Click" Width="30" Height="30" Background="#1E293B" Foreground="White" BorderBrush="#334155" Margin="0,0,4,0"/>
-                        <Button Content="Fit" Click="BtnZoomFit_Click" Width="36" Height="30" Background="#1E293B" Foreground="White" BorderBrush="#334155" Margin="0,0,4,0"/>
-                        <Button x:Name="BtnToggleZones" Content="Zones (On)" Click="BtnToggleZones_Click" Height="30" Padding="8,0" Background="#1E293B" Foreground="White" BorderBrush="#334155"/>
+                    <!-- Viewport Zoom Controls (Overlay on top of ViewportGrid) -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="14" IsHitTestVisible="True">
+                        <Button Content="+" Click="BtnZoomIn_Click" Width="30" Height="30" Background="#1E293B" Foreground="White" BorderBrush="#334155" Margin="0,0,4,0" Cursor="Hand"/>
+                        <Button Content="-" Click="BtnZoomOut_Click" Width="30" Height="30" Background="#1E293B" Foreground="White" BorderBrush="#334155" Margin="0,0,4,0" Cursor="Hand"/>
+                        <Button Content="Fit" Click="BtnZoomFit_Click" Width="36" Height="30" Background="#1E293B" Foreground="White" BorderBrush="#334155" Margin="0,0,4,0" Cursor="Hand"/>
+                        <Button x:Name="BtnToggleZones" Content="Zones (On)" Click="BtnToggleZones_Click" Height="30" Padding="8,0" Background="#1E293B" Foreground="White" BorderBrush="#334155" Cursor="Hand"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -178,9 +182,10 @@
                             <!-- Tree Action Buttons & Hierarchy Level Controls -->
                             <StackPanel Grid.Row="1" Margin="0,0,0,8">
                                 <WrapPanel Margin="0,0,0,4">
-                                    <Button Content="+ Building" Click="BtnAddBuilding_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11"/>
-                                    <Button Content="+ Floor" Click="BtnAddFloor_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11"/>
-                                    <Button Content="+ Discipline" Click="BtnAddDiscipline_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11"/>
+                                    <Button Content="+ Building" Click="BtnAddBuilding_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11" ToolTip="Add new Building to Project"/>
+                                    <Button Content="+ Floor" Click="BtnAddFloor_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11" ToolTip="Add Floor/Level under selected Building"/>
+                                    <Button Content="+ Discipline" Click="BtnAddDiscipline_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11" ToolTip="Add Discipline under selected Floor"/>
+                                    <Button Content="+ Sub-Node" Click="BtnAddChildNode_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="6,4" Margin="0,0,4,4" FontSize="11" ToolTip="Add child node under selected item"/>
                                     <Button Content="Assign Selected" Click="BtnAssignToSelectedNode_Click" Background="{DynamicResource AccentColorBrush}" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="8,4" Margin="0,0,0,4" FontSize="11"/>
                                 </WrapPanel>
                                 <WrapPanel>
@@ -377,7 +382,50 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- Tab 2: Specific Zones -->
+                    <!-- Tab 2: Layers (CAD / Bluebeam / Takeoff Layers with Hide/Show options) -->
+                    <TabItem Header="Layers">
+                        <Grid Margin="12">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="DRAWING &amp; TAKEOFF LAYERS" Foreground="#94A3B8" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button Content="Show All" Click="BtnShowAllLayers_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="8,4" Margin="0,0,6,0" FontSize="11"/>
+                                <Button Content="Hide All" Click="BtnHideAllLayers_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="8,4" Margin="0,0,6,0" FontSize="11"/>
+                                <Button Content="Invert" Click="BtnInvertLayers_Click" Background="{DynamicResource BgTertiaryBrush}" Foreground="{DynamicResource TextMainBrush}" BorderThickness="0" Padding="8,4" FontSize="11"/>
+                            </StackPanel>
+
+                            <ListBox x:Name="LbLayers" Grid.Row="2" Background="{DynamicResource BgPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="4,6">
+                                            <Grid Width="340">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="30"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="65"/>
+                                                    <ColumnDefinition Width="45"/>
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox Grid.Column="0" IsChecked="{Binding IsVisible, Mode=TwoWay}" Click="LayerCheckBox_Click" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource TextMainBrush}" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <Border Grid.Column="2" Background="{DynamicResource BgSecondaryBrush}" CornerRadius="3" Padding="4,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding LayerType}" Foreground="{DynamicResource TextMutedBrush}" FontSize="10"/>
+                                                </Border>
+                                                <TextBlock Grid.Column="3" Text="{Binding Count, StringFormat='({0})'}" Foreground="#38BDF8" FontSize="11" VerticalAlignment="Center" TextAlignment="Right"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Tab 3: Specific Zones -->
                     <TabItem Header="Specific Zones">
                         <Grid Margin="12">
                             <Grid.RowDefinitions>

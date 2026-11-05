@@ -53,6 +53,10 @@ public partial class MainWindow : Window
     public ObservableCollection<BimKeyValue> BimPropertiesList { get; } = new();
     public ObservableCollection<QtoDisplayRow> QtoRows { get; } = new();
     public ObservableCollection<TreeItemViewModel> HierarchyTreeRoots { get; } = new();
+    public ObservableCollection<LayerItemViewModel> LayersList { get; } = new();
+
+    // Layer visibility lookup dictionary: layerName -> isVisible
+    private readonly Dictionary<string, bool> _layerVisibility = new(StringComparer.OrdinalIgnoreCase);
 
     // Selected hierarchy node in tree view
     private BimHierarchyNode? _selectedTreeNode;
@@ -63,6 +67,7 @@ public partial class MainWindow : Window
         DgBimProperties.ItemsSource = BimPropertiesList;
         DgQtoReport.ItemsSource = QtoRows;
         TvBimHierarchy.ItemsSource = HierarchyTreeRoots;
+        LbLayers.ItemsSource = LayersList;
         LoadDefaultSample();
     }
 
@@ -274,7 +279,82 @@ public partial class MainWindow : Window
             expandedIds.Count > 0 ? expandedIds : null,
             activeSelectedId));
 
+        UpdateLayersList();
         CalculateAndDisplayQto();
+        RedrawCanvas();
+    }
+
+    private void UpdateLayersList()
+    {
+        // Aggregate layers from Entities and TakeoffObjects
+        var entityLayers = _doc.Entities
+            .GroupBy(e => string.IsNullOrWhiteSpace(e.Layer) ? "0 (Default)" : e.Layer)
+            .Select(g => new { Name = g.Key, Count = g.Count(), Type = "CAD Layer" });
+
+        var takeoffLayers = _doc.TakeoffObjects
+            .GroupBy(o => string.IsNullOrWhiteSpace(o.Category) ? "Takeoff" : o.Category)
+            .Select(g => new { Name = g.Key, Count = g.Count(), Type = "Takeoff" });
+
+        var allDiscovered = entityLayers.Concat(takeoffLayers).ToList();
+
+        // Preserve existing visibility state for discovered layers
+        foreach (var l in allDiscovered)
+        {
+            if (!_layerVisibility.ContainsKey(l.Name))
+            {
+                _layerVisibility[l.Name] = true;
+            }
+        }
+
+        LayersList.Clear();
+        foreach (var l in allDiscovered)
+        {
+            LayersList.Add(new LayerItemViewModel
+            {
+                Name = l.Name,
+                Count = l.Count,
+                LayerType = l.Type,
+                IsVisible = _layerVisibility[l.Name]
+            });
+        }
+    }
+
+    private void LayerCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox cb && cb.DataContext is LayerItemViewModel vm)
+        {
+            _layerVisibility[vm.Name] = vm.IsVisible;
+            RedrawCanvas();
+        }
+    }
+
+    private void BtnShowAllLayers_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var layer in LayersList)
+        {
+            layer.IsVisible = true;
+            _layerVisibility[layer.Name] = true;
+        }
+        RedrawCanvas();
+    }
+
+    private void BtnHideAllLayers_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var layer in LayersList)
+        {
+            layer.IsVisible = false;
+            _layerVisibility[layer.Name] = false;
+        }
+        RedrawCanvas();
+    }
+
+    private void BtnInvertLayers_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var layer in LayersList)
+        {
+            layer.IsVisible = !layer.IsVisible;
+            _layerVisibility[layer.Name] = layer.IsVisible;
+        }
         RedrawCanvas();
     }
 
@@ -414,52 +494,140 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AddNodeAndSelect(BimHierarchyNode parent, BimHierarchyNode newNode)
+    {
+        parent.AddChild(newNode);
+        _selectedTreeNode = newNode;
+        TxtTreeNodeName.Text = newNode.Name;
+        TxtTreeNodeCode.Text = newNode.Code ?? "";
+        UpdateUiFromDoc();
+        TxtStatus.Text = $"Added '{newNode.Name}' ({newNode.NodeType}) under '{parent.Name}'.";
+    }
+
     private void BtnAddBuilding_Click(object sender, RoutedEventArgs e)
     {
-        var targetNode = _selectedTreeNode ?? _doc.HierarchyRoot;
-        int count = targetNode.Children.Count(c => c.NodeType == HierarchyNodeType.Building) + 1;
+        // Buildings are top-level assets under root
+        var parent = _doc.HierarchyRoot;
+        int count = parent.Children.Count(c => c.NodeType == HierarchyNodeType.Building) + 1;
         var building = new BimHierarchyNode
         {
             Name = $"Building {count}",
             NodeType = HierarchyNodeType.Building,
             Code = $"BLD-{count:00}"
         };
-        targetNode.AddChild(building);
-        UpdateUiFromDoc();
+        AddNodeAndSelect(parent, building);
     }
 
     private void BtnAddFloor_Click(object sender, RoutedEventArgs e)
     {
-        var targetNode = (_selectedTreeNode?.NodeType == HierarchyNodeType.Building)
-            ? _selectedTreeNode
-            : (_doc.HierarchyRoot.Children.FirstOrDefault(c => c.NodeType == HierarchyNodeType.Building) ?? _doc.HierarchyRoot);
+        // Floor goes under selected Building, or parent of selected if under Building, or first Building, or root
+        BimHierarchyNode? targetBuilding = null;
+        if (_selectedTreeNode != null)
+        {
+            if (_selectedTreeNode.NodeType == HierarchyNodeType.Building)
+            {
+                targetBuilding = _selectedTreeNode;
+            }
+            else
+            {
+                // Traverse up to find ancestor Building
+                var cur = _selectedTreeNode;
+                while (cur != null && !string.IsNullOrEmpty(cur.ParentId))
+                {
+                    var p = _doc.HierarchyRoot.FindNode(cur.ParentId);
+                    if (p != null && p.NodeType == HierarchyNodeType.Building)
+                    {
+                        targetBuilding = p;
+                        break;
+                    }
+                    cur = p;
+                }
+            }
+        }
 
-        int count = targetNode.Children.Count(c => c.NodeType == HierarchyNodeType.Floor) + 1;
+        targetBuilding ??= _doc.HierarchyRoot.Children.FirstOrDefault(c => c.NodeType == HierarchyNodeType.Building);
+
+        // If no building exists yet, create one first
+        if (targetBuilding == null)
+        {
+            targetBuilding = new BimHierarchyNode
+            {
+                Name = "Building 01",
+                NodeType = HierarchyNodeType.Building,
+                Code = "BLD-01"
+            };
+            _doc.HierarchyRoot.AddChild(targetBuilding);
+        }
+
+        int count = targetBuilding.Children.Count(c => c.NodeType == HierarchyNodeType.Floor) + 1;
         var floor = new BimHierarchyNode
         {
             Name = $"Level {count:00}",
             NodeType = HierarchyNodeType.Floor,
             Code = $"LVL-{count:00}"
         };
-        targetNode.AddChild(floor);
-        UpdateUiFromDoc();
+        AddNodeAndSelect(targetBuilding, floor);
     }
 
     private void BtnAddDiscipline_Click(object sender, RoutedEventArgs e)
     {
-        var targetNode = _selectedTreeNode ?? _doc.HierarchyRoot;
+        // Discipline goes under selected Floor (or selected node), or under first floor, or root
+        BimHierarchyNode? targetFloor = null;
+        if (_selectedTreeNode != null)
+        {
+            if (_selectedTreeNode.NodeType == HierarchyNodeType.Floor)
+            {
+                targetFloor = _selectedTreeNode;
+            }
+            else if (_selectedTreeNode.NodeType == HierarchyNodeType.Discipline)
+            {
+                targetFloor = _doc.HierarchyRoot.FindNode(_selectedTreeNode.ParentId ?? "") ?? _selectedTreeNode;
+            }
+            else if (_selectedTreeNode.NodeType == HierarchyNodeType.Building)
+            {
+                targetFloor = _selectedTreeNode.Children.FirstOrDefault(c => c.NodeType == HierarchyNodeType.Floor);
+            }
+        }
+
+        if (targetFloor == null)
+        {
+            var firstBuilding = _doc.HierarchyRoot.Children.FirstOrDefault(c => c.NodeType == HierarchyNodeType.Building) ?? _doc.HierarchyRoot;
+            targetFloor = firstBuilding.Children.FirstOrDefault(c => c.NodeType == HierarchyNodeType.Floor) ?? firstBuilding;
+        }
+
         string[] disciplines = { "Architectural", "Structural", "Mechanical", "Electrical", "Plumbing", "Fire Protection" };
-        int idx = targetNode.Children.Count % disciplines.Length;
+        int idx = targetFloor.Children.Count % disciplines.Length;
         string disc = disciplines[idx];
 
         var discNode = new BimHierarchyNode
         {
             Name = $"{disc} Works",
             NodeType = HierarchyNodeType.Discipline,
-            Code = disc.Substring(0, 3).ToUpper()
+            Code = disc.Length >= 4 ? disc.Substring(0, 4).ToUpper() : disc.ToUpper()
         };
-        targetNode.AddChild(discNode);
-        UpdateUiFromDoc();
+        AddNodeAndSelect(targetFloor, discNode);
+    }
+
+    private void BtnAddChildNode_Click(object sender, RoutedEventArgs e)
+    {
+        var targetNode = _selectedTreeNode ?? _doc.HierarchyRoot;
+        var nextType = targetNode.NodeType switch
+        {
+            HierarchyNodeType.Project => HierarchyNodeType.Building,
+            HierarchyNodeType.Building => HierarchyNodeType.Floor,
+            HierarchyNodeType.Floor => HierarchyNodeType.Discipline,
+            HierarchyNodeType.Discipline => HierarchyNodeType.Category,
+            _ => HierarchyNodeType.Category
+        };
+
+        int count = targetNode.Children.Count + 1;
+        var childNode = new BimHierarchyNode
+        {
+            Name = $"{nextType} {count:00}",
+            NodeType = nextType,
+            Code = $"{nextType.ToString().Substring(0, Math.Min(3, nextType.ToString().Length)).ToUpper()}-{count:00}"
+        };
+        AddNodeAndSelect(targetNode, childNode);
     }
 
     private void BtnAssignToSelectedNode_Click(object sender, RoutedEventArgs e)
@@ -571,13 +739,18 @@ public partial class MainWindow : Window
             sheetPen.Freeze();
             dc.DrawRectangle(sheetBg, sheetPen, new Rect(0, 0, docW, docH));
 
-            // 2. Draw CAD / PDF Vector Entities directly via DrawingContext
+            // 2. Draw CAD / PDF Vector Entities directly via DrawingContext (filtered by layer visibility)
             foreach (var entity in _doc.Entities)
             {
+                string layerKey = string.IsNullOrWhiteSpace(entity.Layer) ? "0 (Default)" : entity.Layer;
+                if (_layerVisibility.TryGetValue(layerKey, out bool isVis) && !isVis)
+                {
+                    continue; // Layer is hidden
+                }
                 DrawEntityDirect(dc, entity);
             }
 
-            // 2. Draw Specific Zones
+            // 3. Draw Specific Zones
             if (_showZones)
             {
                 foreach (var zone in _doc.Zones)
@@ -586,9 +759,14 @@ public partial class MainWindow : Window
                 }
             }
 
-            // 3. Draw Takeoff Objects
+            // 4. Draw Takeoff Objects (filtered by layer/category visibility)
             foreach (var obj in _doc.TakeoffObjects)
             {
+                string catKey = string.IsNullOrWhiteSpace(obj.Category) ? "Takeoff" : obj.Category;
+                if (_layerVisibility.TryGetValue(catKey, out bool isVis) && !isVis)
+                {
+                    continue; // Category/Layer is hidden
+                }
                 DrawTakeoffObjectDirect(dc, obj, _selectedObjects.Contains(obj));
             }
         }
@@ -1819,18 +1997,71 @@ public partial class MainWindow : Window
 
     private void BtnZoomFit_Click(object sender, RoutedEventArgs e) => ZoomFit();
 
+    public Rect CalculateDocumentBounds()
+    {
+        double minX = 0, minY = 0;
+        double maxX = Math.Max(200, _doc.Width);
+        double maxY = Math.Max(200, _doc.Height);
+
+        bool hasPoints = false;
+        void IncludePoint(Point2D pt)
+        {
+            if (!hasPoints)
+            {
+                minX = maxX = pt.X;
+                minY = maxY = pt.Y;
+                hasPoints = true;
+            }
+            else
+            {
+                minX = Math.Min(minX, pt.X);
+                minY = Math.Min(minY, pt.Y);
+                maxX = Math.Max(maxX, pt.X);
+                maxY = Math.Max(maxY, pt.Y);
+            }
+        }
+
+        foreach (var ent in _doc.Entities)
+        {
+            foreach (var pt in ent.Points) IncludePoint(pt);
+        }
+        foreach (var zone in _doc.Zones)
+        {
+            foreach (var pt in zone.Boundary) IncludePoint(pt);
+        }
+        foreach (var obj in _doc.TakeoffObjects)
+        {
+            foreach (var pt in obj.GeometryPoints) IncludePoint(pt);
+        }
+
+        if (!hasPoints)
+        {
+            return new Rect(0, 0, Math.Max(200, _doc.Width), Math.Max(200, _doc.Height));
+        }
+
+        // Expand bounds slightly to give border breathing room
+        double w = Math.Max(50, maxX - minX);
+        double h = Math.Max(50, maxY - minY);
+        return new Rect(minX, minY, w, h);
+    }
+
     private void ZoomFit()
     {
         double viewportW = ViewportGrid.ActualWidth > 0 ? ViewportGrid.ActualWidth : 900;
         double viewportH = ViewportGrid.ActualHeight > 0 ? ViewportGrid.ActualHeight : 650;
-        double docW = Math.Max(200, _doc.Width);
-        double docH = Math.Max(200, _doc.Height);
 
-        double s = Math.Min(viewportW / docW, viewportH / docH) * 0.85;
+        var bounds = CalculateDocumentBounds();
+        double pad = 40.0;
+        double availW = Math.Max(100, viewportW - pad * 2);
+        double availH = Math.Max(100, viewportH - pad * 2);
+
+        double s = Math.Clamp(Math.Min(availW / bounds.Width, availH / bounds.Height), 0.05, 10.0);
         CanvasScale.ScaleX = s;
         CanvasScale.ScaleY = s;
-        CanvasTranslate.X = (viewportW - docW * s) / 2;
-        CanvasTranslate.Y = (viewportH - docH * s) / 2;
+
+        // Center the content bounds in the viewport
+        CanvasTranslate.X = (viewportW - bounds.Width * s) / 2 - bounds.X * s;
+        CanvasTranslate.Y = (viewportH - bounds.Height * s) / 2 - bounds.Y * s;
 
         RedrawCanvas();
     }

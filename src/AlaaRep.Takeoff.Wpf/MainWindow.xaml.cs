@@ -22,7 +22,8 @@ public partial class MainWindow : Window
 
     // Tools: Select, Count, Length, Area, Zone, Calibrate
     private string _currentTool = "Select";
-    private TakeoffObject? _selectedObject;
+    private readonly List<TakeoffObject> _selectedObjects = new();
+    private TakeoffObject? _selectedObject => _selectedObjects.LastOrDefault();
     private Zone? _selectedZone;
     private bool _showZones = true;
 
@@ -30,13 +31,17 @@ public partial class MainWindow : Window
     private bool _isPanning;
     private System.Windows.Point _panStart;
 
+    // Interactive Marquee Rectangle Selection
+    private bool _isMarqueeSelecting;
+    private Point2D? _marqueeStart;
+
     // Interactive Object Moving & Vertex Dragging
     private bool _isDraggingObject;
     private int _dragVertexIndex = -1;
     private Point2D? _dragStartDrawPt;
 
     // Clipboard for Copy / Paste
-    private TakeoffObject? _clipboardObject;
+    private readonly List<TakeoffObject> _clipboardObjects = new();
 
     // In-progress drawing points (drawing-space coordinates)
     private readonly List<Point2D> _drawingPoints = new();
@@ -225,7 +230,16 @@ public partial class MainWindow : Window
 
         using (var dc = FastCanvas.RenderOpen())
         {
-            // 1. Draw CAD / PDF Vector Entities directly via DrawingContext
+            // 1. Draw Architectural Drawing Sheet / Layout Boundary
+            double docW = Math.Max(500, _doc.Width);
+            double docH = Math.Max(400, _doc.Height);
+            var sheetBg = new SolidColorBrush(Color.FromRgb(10, 15, 29));
+            sheetBg.Freeze();
+            var sheetPen = new Pen(new SolidColorBrush(Color.FromRgb(51, 65, 85)), 1.5);
+            sheetPen.Freeze();
+            dc.DrawRectangle(sheetBg, sheetPen, new Rect(0, 0, docW, docH));
+
+            // 2. Draw CAD / PDF Vector Entities directly via DrawingContext
             foreach (var entity in _doc.Entities)
             {
                 DrawEntityDirect(dc, entity);
@@ -243,7 +257,7 @@ public partial class MainWindow : Window
             // 3. Draw Takeoff Objects
             foreach (var obj in _doc.TakeoffObjects)
             {
-                DrawTakeoffObjectDirect(dc, obj);
+                DrawTakeoffObjectDirect(dc, obj, _selectedObjects.Contains(obj));
             }
         }
 
@@ -265,10 +279,19 @@ public partial class MainWindow : Window
             DrawCalibrationLine();
         }
 
-        // Draw Interactive Vertex Handles for Selected Object
-        if (_selectedObject != null && _selectedObject.GeometryPoints.Count > 0)
+        // Draw Interactive Vertex Handles for Selected Objects
+        foreach (var obj in _selectedObjects)
         {
-            DrawSelectionHandles(_selectedObject);
+            if (obj.GeometryPoints.Count > 0)
+            {
+                DrawSelectionHandles(obj);
+            }
+        }
+
+        // Draw Marquee Selection Box
+        if (_isMarqueeSelecting && _marqueeStart != null)
+        {
+            DrawMarqueeBox(_marqueeStart, ScreenToDrawing(_currentMousePos));
         }
 
         // Draw Snapping Glyph (Orange square for Endpoint, Green triangle for Midpoint, Blue hourglass for Nearest)
@@ -276,6 +299,27 @@ public partial class MainWindow : Window
         {
             DrawSnapGlyph(_currentSnap);
         }
+    }
+
+    private void DrawMarqueeBox(Point2D p1, Point2D p2)
+    {
+        double x = Math.Min(p1.X, p2.X);
+        double y = Math.Min(p1.Y, p2.Y);
+        double w = Math.Abs(p1.X - p2.X);
+        double h = Math.Abs(p1.Y - p2.Y);
+
+        var rect = new Rectangle
+        {
+            Width = w,
+            Height = h,
+            Fill = new SolidColorBrush(Color.FromArgb(40, 59, 130, 246)),
+            Stroke = new SolidColorBrush(Color.FromRgb(59, 130, 246)),
+            StrokeThickness = 1.5,
+            StrokeDashArray = new DoubleCollection { 4, 3 }
+        };
+        Canvas.SetLeft(rect, x);
+        Canvas.SetTop(rect, y);
+        PreviewCanvas.Children.Add(rect);
     }
 
     private void DrawSelectionHandles(TakeoffObject obj)
@@ -420,11 +464,9 @@ public partial class MainWindow : Window
         dc.DrawText(formattedText, new System.Windows.Point(centroid.X - 40, centroid.Y - 8));
     }
 
-    private void DrawTakeoffObjectDirect(DrawingContext dc, TakeoffObject obj)
+    private void DrawTakeoffObjectDirect(DrawingContext dc, TakeoffObject obj, bool isSelected)
     {
         if (obj.GeometryPoints.Count == 0) return;
-
-        bool isSelected = (_selectedObject?.Id == obj.Id);
         var baseColor = ParseColorValue(obj.ColorHex ?? "#3B82F6");
         var fillBrush = new SolidColorBrush(Color.FromArgb((byte)(obj.Opacity * 255), baseColor.R, baseColor.G, baseColor.B));
         fillBrush.Freeze();
@@ -584,40 +626,71 @@ public partial class MainWindow : Window
             switch (_currentTool)
             {
                 case "Select":
-                    // Check if clicked an existing handle of the selected object for vertex editing
+                    bool isShiftOrCtrl = (Keyboard.Modifiers & (ModifierKeys.Shift | ModifierKeys.Control)) != 0;
+
+                    // 1. Check if clicked an existing vertex handle of any selected object
                     if (_selectedObject != null)
                     {
                         double handleRadius = 12.0 / CanvasScale.ScaleX;
-                        int hitIdx = -1;
                         for (int i = 0; i < _selectedObject.GeometryPoints.Count; i++)
                         {
                             if (_selectedObject.GeometryPoints[i].DistanceTo(drawPt) <= handleRadius)
                             {
-                                hitIdx = i;
-                                break;
+                                _isDraggingObject = true;
+                                _dragVertexIndex = i;
+                                _dragStartDrawPt = drawPt;
+                                ViewportGrid.CaptureMouse();
+                                return;
                             }
                         }
-
-                        if (hitIdx >= 0)
-                        {
-                            _isDraggingObject = true;
-                            _dragVertexIndex = hitIdx;
-                            _dragStartDrawPt = drawPt;
-                            ViewportGrid.CaptureMouse();
-                            return;
-                        }
                     }
 
-                    PickObjectOrZone(drawPt);
-
-                    // If an object is selected and user clicked on it, prepare to move it
-                    if (_selectedObject != null)
+                    // 2. Hit test single object
+                    var hit = FindObjectAt(drawPt);
+                    if (hit != null)
                     {
+                        if (isShiftOrCtrl)
+                        {
+                            if (_selectedObjects.Contains(hit)) _selectedObjects.Remove(hit);
+                            else _selectedObjects.Add(hit);
+                        }
+                        else if (!_selectedObjects.Contains(hit))
+                        {
+                            _selectedObjects.Clear();
+                            _selectedObjects.Add(hit);
+                        }
+
                         _isDraggingObject = true;
-                        _dragVertexIndex = -1; // -1 means moving whole object
+                        _dragVertexIndex = -1;
                         _dragStartDrawPt = drawPt;
                         ViewportGrid.CaptureMouse();
+                        UpdateBimInspector();
+                        RedrawCanvas();
+                        return;
                     }
+
+                    // 3. Hit test zone
+                    var hitZone = FindZoneAt(drawPt);
+                    if (hitZone != null)
+                    {
+                        _selectedZone = hitZone;
+                        _selectedObjects.Clear();
+                        ClearBimInspector();
+                        RedrawCanvas();
+                        return;
+                    }
+
+                    // 4. Clicked empty space -> start Rectangle Marquee Selection
+                    if (!isShiftOrCtrl)
+                    {
+                        _selectedObjects.Clear();
+                        _selectedZone = null;
+                        ClearBimInspector();
+                    }
+                    _isMarqueeSelecting = true;
+                    _marqueeStart = drawPt;
+                    ViewportGrid.CaptureMouse();
+                    RedrawCanvas();
                     break;
 
                 case "Count":
@@ -665,25 +738,33 @@ public partial class MainWindow : Window
         }
 
         // Handle Object Moving or Vertex Dragging
-        if (_isDraggingObject && _selectedObject != null && _dragStartDrawPt != null)
+        if (_isDraggingObject && _selectedObjects.Count > 0 && _dragStartDrawPt != null)
         {
             double deltaX = rawDrawPt.X - _dragStartDrawPt.X;
             double deltaY = rawDrawPt.Y - _dragStartDrawPt.Y;
 
-            if (_dragVertexIndex >= 0 && _dragVertexIndex < _selectedObject.GeometryPoints.Count)
+            if (_dragVertexIndex >= 0 && _selectedObject != null && _dragVertexIndex < _selectedObject.GeometryPoints.Count)
             {
-                // Drag single vertex
                 _selectedObject.GeometryPoints[_dragVertexIndex] = rawDrawPt;
             }
             else
             {
-                // Move entire object
-                _selectedObject.MoveBy(deltaX, deltaY);
+                // Move all selected objects together
+                foreach (var obj in _selectedObjects)
+                {
+                    obj.MoveBy(deltaX, deltaY);
+                }
                 _dragStartDrawPt = rawDrawPt;
             }
 
-            SelectObject(_selectedObject);
+            UpdateBimInspector();
             RedrawCanvas();
+            return;
+        }
+
+        if (_isMarqueeSelecting)
+        {
+            RedrawPreview();
             return;
         }
 
@@ -717,6 +798,34 @@ public partial class MainWindow : Window
             _dragStartDrawPt = null;
             ViewportGrid.ReleaseMouseCapture();
             CalculateAndDisplayQto();
+        }
+
+        if (_isMarqueeSelecting && _marqueeStart != null)
+        {
+            _isMarqueeSelecting = false;
+            ViewportGrid.ReleaseMouseCapture();
+
+            var marqueeEnd = ScreenToDrawing(_currentMousePos);
+            double left = Math.Min(_marqueeStart.X, marqueeEnd.X);
+            double right = Math.Max(_marqueeStart.X, marqueeEnd.X);
+            double top = Math.Min(_marqueeStart.Y, marqueeEnd.Y);
+            double bottom = Math.Max(_marqueeStart.Y, marqueeEnd.Y);
+
+            // Select all objects intersecting the marquee rectangle
+            foreach (var obj in _doc.TakeoffObjects)
+            {
+                if (SpatialCalculator.IntersectsRect(obj.GeometryPoints, left, top, right, bottom))
+                {
+                    if (!_selectedObjects.Contains(obj))
+                    {
+                        _selectedObjects.Add(obj);
+                    }
+                }
+            }
+
+            _marqueeStart = null;
+            UpdateBimInspector();
+            RedrawCanvas();
         }
     }
 
@@ -764,10 +873,13 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.Delete)
         {
-            if (_selectedObject != null)
+            if (_selectedObjects.Count > 0)
             {
-                _doc.TakeoffObjects.Remove(_selectedObject);
-                _selectedObject = null;
+                foreach (var obj in _selectedObjects)
+                {
+                    _doc.TakeoffObjects.Remove(obj);
+                }
+                _selectedObjects.Clear();
                 ClearBimInspector();
                 UpdateUiFromDoc();
             }
@@ -782,22 +894,34 @@ public partial class MainWindow : Window
 
     private void CopySelectedObject()
     {
-        if (_selectedObject != null)
+        if (_selectedObjects.Count > 0)
         {
-            _clipboardObject = _selectedObject.Clone(0);
-            TxtStatus.Text = $"Copied: {_selectedObject.Name} to clipboard.";
+            _clipboardObjects.Clear();
+            foreach (var obj in _selectedObjects)
+            {
+                _clipboardObjects.Add(obj.Clone(0));
+            }
+            TxtStatus.Text = $"Copied {_clipboardObjects.Count} objects to clipboard.";
         }
     }
 
     private void PasteObject()
     {
-        if (_clipboardObject != null)
+        if (_clipboardObjects.Count > 0)
         {
-            var pasted = _clipboardObject.Clone(30.0); // 30px offset
-            _doc.TakeoffObjects.Add(pasted);
-            SelectObject(pasted);
+            var pastedList = new List<TakeoffObject>();
+            foreach (var clip in _clipboardObjects)
+            {
+                var pasted = clip.Clone(30.0);
+                _doc.TakeoffObjects.Add(pasted);
+                pastedList.Add(pasted);
+            }
+
+            _selectedObjects.Clear();
+            _selectedObjects.AddRange(pastedList);
+            UpdateBimInspector();
             UpdateUiFromDoc();
-            TxtStatus.Text = $"Pasted: {pasted.Name}. You can drag it to position.";
+            TxtStatus.Text = $"Pasted {pastedList.Count} objects. You can drag them together.";
         }
     }
 
@@ -884,9 +1008,8 @@ public partial class MainWindow : Window
         UpdateUiFromDoc();
     }
 
-    private void PickObjectOrZone(Point2D pt)
+    private TakeoffObject? FindObjectAt(Point2D pt)
     {
-        // 1. Hit test Takeoff Objects
         double scale = CanvasScale.ScaleX;
         double hitRadius = 15.0 / scale;
 
@@ -895,75 +1018,70 @@ public partial class MainWindow : Window
             if (obj.MeasurementType == TakeoffMeasurementType.Count)
             {
                 if (obj.GeometryPoints.Any(p => p.DistanceTo(pt) <= hitRadius))
-                {
-                    SelectObject(obj);
-                    return;
-                }
+                    return obj;
             }
             else if (obj.MeasurementType == TakeoffMeasurementType.Length)
             {
                 for (int i = 0; i < obj.GeometryPoints.Count - 1; i++)
                 {
                     if (SpatialCalculator.DistanceToSegment(pt, obj.GeometryPoints[i], obj.GeometryPoints[i + 1]) <= hitRadius)
-                    {
-                        SelectObject(obj);
-                        return;
-                    }
+                        return obj;
                 }
             }
             else
             {
                 if (SpatialCalculator.IsPointInPolygon(pt, obj.GeometryPoints))
-                {
-                    SelectObject(obj);
-                    return;
-                }
+                    return obj;
             }
         }
+        return null;
+    }
 
-        // 2. Hit test Zones
+    private Zone? FindZoneAt(Point2D pt)
+    {
         foreach (var zone in _doc.Zones.AsEnumerable().Reverse())
         {
             if (SpatialCalculator.IsPointInPolygon(pt, zone.Boundary))
-            {
-                _selectedZone = zone;
-                _selectedObject = null;
-                TxtStatus.Text = $"Selected Zone: {zone.Name} ({zone.Code})";
-                RedrawCanvas();
-                return;
-            }
+                return zone;
         }
-
-        // Empty space clicked
-        _selectedObject = null;
-        _selectedZone = null;
-        ClearBimInspector();
-        RedrawCanvas();
+        return null;
     }
 
     private void SelectObject(TakeoffObject obj)
     {
-        _selectedObject = obj;
+        _selectedObjects.Clear();
+        _selectedObjects.Add(obj);
         _selectedZone = null;
+        UpdateBimInspector();
+        RedrawCanvas();
+    }
 
-        TxtPropName.Text = obj.Name;
+    private void UpdateBimInspector()
+    {
+        if (_selectedObjects.Count == 0)
+        {
+            ClearBimInspector();
+            return;
+        }
+
+        var obj = _selectedObjects.Last();
+        TxtPropName.Text = _selectedObjects.Count == 1 ? obj.Name : $"Multiple Objects ({_selectedObjects.Count} selected)";
         TxtPropCategory.Text = obj.Category;
-        TxtPropType.Text = obj.MeasurementType.ToString();
+        TxtPropType.Text = _selectedObjects.Count == 1 ? obj.MeasurementType.ToString() : "Mixed";
 
         double scale = _doc.Calibration.UnitsPerCoordinate;
-        if (obj.MeasurementType == TakeoffMeasurementType.Count)
+        if (_selectedObjects.Count == 1)
         {
-            TxtPropQuantity.Text = $"{obj.GeometryPoints.Count} pcs";
-        }
-        else if (obj.MeasurementType == TakeoffMeasurementType.Length)
-        {
-            double len = SpatialCalculator.CalculatePolylineLength(obj.GeometryPoints) * scale;
-            TxtPropQuantity.Text = $"{len:F2} {_doc.Calibration.LinearUnit}";
+            if (obj.MeasurementType == TakeoffMeasurementType.Count)
+                TxtPropQuantity.Text = $"{obj.GeometryPoints.Count} pcs";
+            else if (obj.MeasurementType == TakeoffMeasurementType.Length)
+                TxtPropQuantity.Text = $"{SpatialCalculator.CalculatePolylineLength(obj.GeometryPoints) * scale:F2} {_doc.Calibration.LinearUnit}";
+            else
+                TxtPropQuantity.Text = $"{SpatialCalculator.CalculatePolygonArea(obj.GeometryPoints) * scale * scale:F2} {_doc.Calibration.AreaUnit}";
         }
         else
         {
-            double area = SpatialCalculator.CalculatePolygonArea(obj.GeometryPoints) * scale * scale;
-            TxtPropQuantity.Text = $"{area:F2} {_doc.Calibration.AreaUnit}";
+            TxtPropQuantity.Text = $"{_selectedObjects.Count} items selected";
         }
 
         BimPropertiesList.Clear();
@@ -972,7 +1090,71 @@ public partial class MainWindow : Window
             BimPropertiesList.Add(new BimKeyValue { Key = kvp.Key, Value = kvp.Value });
         }
 
-        TxtStatus.Text = $"Selected Takeoff Object: {obj.Name} ({obj.Category})";
+        if (TxtColorHex != null)
+        {
+            TxtColorHex.Text = obj.ColorHex ?? "#3B82F6";
+        }
+        if (SliderOpacity != null)
+        {
+            SliderOpacity.Value = obj.Opacity;
+        }
+
+        TxtStatus.Text = _selectedObjects.Count == 1
+            ? $"Selected: {obj.Name} ({obj.Category})"
+            : $"Selected {_selectedObjects.Count} objects via rectangle marquee.";
+    }
+
+    private void BtnColorPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string hex)
+        {
+            if (TxtColorHex != null) TxtColorHex.Text = hex;
+            ApplyColorToSelected(hex);
+        }
+    }
+
+    private void TxtColorHex_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (TxtColorHex == null) return;
+        string hex = TxtColorHex.Text.Trim();
+        if (hex.StartsWith("#") && (hex.Length == 4 || hex.Length == 7 || hex.Length == 9))
+        {
+            ApplyColorToSelected(hex);
+        }
+    }
+
+    private void ApplyColorToSelected(string hex)
+    {
+        if (_selectedObjects.Count == 0 && _selectedZone == null) return;
+
+        foreach (var obj in _selectedObjects)
+        {
+            obj.ColorHex = hex;
+        }
+        if (_selectedZone != null)
+        {
+            _selectedZone.ColorHex = hex;
+        }
+        RedrawCanvas();
+    }
+
+    private void SliderOpacity_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtOpacityValue != null)
+        {
+            TxtOpacityValue.Text = $"{(int)(e.NewValue * 100)}%";
+        }
+
+        if (_selectedObjects.Count == 0 && _selectedZone == null) return;
+
+        foreach (var obj in _selectedObjects)
+        {
+            obj.Opacity = e.NewValue;
+        }
+        if (_selectedZone != null)
+        {
+            _selectedZone.Opacity = e.NewValue;
+        }
         RedrawCanvas();
     }
 
@@ -1231,9 +1413,12 @@ public partial class MainWindow : Window
 
     private void BtnDeleteObject_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedObject == null) return;
-        _doc.TakeoffObjects.Remove(_selectedObject);
-        _selectedObject = null;
+        if (_selectedObjects.Count == 0) return;
+        foreach (var obj in _selectedObjects)
+        {
+            _doc.TakeoffObjects.Remove(obj);
+        }
+        _selectedObjects.Clear();
         ClearBimInspector();
         UpdateUiFromDoc();
     }
@@ -1256,7 +1441,7 @@ public partial class MainWindow : Window
         if (LbZones.SelectedItem is Zone zone)
         {
             _selectedZone = zone;
-            _selectedObject = null;
+            _selectedObjects.Clear();
             RedrawCanvas();
         }
     }

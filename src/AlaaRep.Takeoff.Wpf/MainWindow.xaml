@@ -106,32 +106,29 @@
             </Grid.ColumnDefinitions>
 
             <!-- Center Drawing Viewport -->
-            <Border Grid.Column="0" Background="#0A0F1D" ClipToBounds="True" Focusable="True">
+            <Border Grid.Column="0" Background="#060913" ClipToBounds="True" Focusable="True">
                 <Grid x:Name="ViewportGrid"
-                      Background="Transparent"
+                      Background="{StaticResource CadGridTileBrush}"
                       PreviewMouseDown="Viewport_MouseDown"
                       MouseMove="Viewport_MouseMove"
                       MouseUp="Viewport_MouseUp"
                       MouseWheel="Viewport_MouseWheel">
 
-                    <!-- Zoom & Pan Canvas Container -->
-                    <Grid x:Name="CanvasContainer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                        <Grid.RenderTransform>
+                    <!-- Zoom & Pan Canvas Container (Infinite size, no clipping) -->
+                    <Canvas x:Name="CanvasContainer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
+                        <Canvas.RenderTransform>
                             <TransformGroup>
                                 <ScaleTransform x:Name="CanvasScale" ScaleX="1" ScaleY="1"/>
                                 <TranslateTransform x:Name="CanvasTranslate" X="50" Y="50"/>
                             </TransformGroup>
-                        </Grid.RenderTransform>
+                        </Canvas.RenderTransform>
 
-                        <!-- Grid Tile Background (Hit-test disabled so ViewportGrid catches 100% of clicks) -->
-                        <Rectangle Width="5000" Height="5000" Fill="{StaticResource CadGridTileBrush}" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <!-- Fast Direct Drawing Surface (Hardware Visual Context, Infinite) -->
+                        <local:FastDrawingCanvas x:Name="FastCanvas" IsHitTestVisible="False"/>
 
-                        <!-- Fast Direct Drawing Surface (Hit-test disabled) -->
-                        <local:FastDrawingCanvas x:Name="FastCanvas" Width="5000" Height="5000" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-
-                        <!-- Interactive In-Progress Preview Layer (Hit-test disabled so points/rubberband never intercept clicks) -->
-                        <Canvas x:Name="PreviewCanvas" Width="5000" Height="5000" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                    </Grid>
+                        <!-- Interactive In-Progress Preview Layer (Rubberband, Selection Marquee, Handles) -->
+                        <Canvas x:Name="PreviewCanvas" IsHitTestVisible="False"/>
+                    </Canvas>
 
                     <!-- Viewport Floating HUD -->
                     <Border Background="#CC1E293B" CornerRadius="6" BorderBrush="#334155" BorderThickness="1"
@@ -206,6 +203,34 @@
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Quantity:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,4,8,4"/>
                                     <TextBox x:Name="TxtPropQuantity" Grid.Row="3" Grid.Column="1" Background="#0F172A" Foreground="#10B981" FontWeight="Bold" IsReadOnly="True" BorderBrush="#334155" Padding="4" Margin="0,2"/>
                                 </Grid>
+
+                                <!-- Color & Transparency Controls -->
+                                <Border Background="#0F172A" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="APPEARANCE (COLOR &amp; OPACITY)" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Margin="0,0,0,6"/>
+
+                                        <DockPanel Margin="0,0,0,6">
+                                            <TextBlock Text="Color Palette:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Width="20" Height="20" Background="#3B82F6" BorderThickness="0" Margin="2,0" Tag="#3B82F6" Click="BtnColorPreset_Click" ToolTip="Blue"/>
+                                                <Button Width="20" Height="20" Background="#10B981" BorderThickness="0" Margin="2,0" Tag="#10B981" Click="BtnColorPreset_Click" ToolTip="Emerald Green"/>
+                                                <Button Width="20" Height="20" Background="#F59E0B" BorderThickness="0" Margin="2,0" Tag="#F59E0B" Click="BtnColorPreset_Click" ToolTip="Amber"/>
+                                                <Button Width="20" Height="20" Background="#EF4444" BorderThickness="0" Margin="2,0" Tag="#EF4444" Click="BtnColorPreset_Click" ToolTip="Red"/>
+                                                <Button Width="20" Height="20" Background="#8B5CF6" BorderThickness="0" Margin="2,0" Tag="#8B5CF6" Click="BtnColorPreset_Click" ToolTip="Purple"/>
+                                                <Button Width="20" Height="20" Background="#EC4899" BorderThickness="0" Margin="2,0" Tag="#EC4899" Click="BtnColorPreset_Click" ToolTip="Pink"/>
+                                                <Button Width="20" Height="20" Background="#06B6D4" BorderThickness="0" Margin="2,0" Tag="#06B6D4" Click="BtnColorPreset_Click" ToolTip="Cyan"/>
+                                                <TextBox x:Name="TxtColorHex" Width="68" Margin="6,0,0,0" Background="#1E293B" Foreground="White" BorderBrush="#334155" Text="#3B82F6" TextChanged="TxtColorHex_TextChanged"/>
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <DockPanel>
+                                            <TextBlock Text="Transparency:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="11" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="TxtOpacityValue" Text="40%" Foreground="#38BDF8" Width="36" VerticalAlignment="Center" FontSize="11"/>
+                                            <Slider x:Name="SliderOpacity" Minimum="0.05" Maximum="1.0" Value="0.4" SmallChange="0.05" LargeChange="0.1"
+                                                    ValueChanged="SliderOpacity_ValueChanged" VerticalAlignment="Center"/>
+                                        </DockPanel>
+                                    </StackPanel>
+                                </Border>
 
                                 <!-- BIM Properties Grid -->
                                 <DockPanel Margin="0,12,0,6">

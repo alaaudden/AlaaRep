@@ -184,4 +184,26 @@ public class SpatialCalculatorTests
         Assert.Equal(250.0, snapNearest.SnappedPoint.X, 1);
         Assert.Equal(100.0, snapNearest.SnappedPoint.Y, 1);
     }
+
+    [Fact]
+    public void IntersectsRect_CorrectlyIdentifiesMarqueeSelection()
+    {
+        // Polygon at (100, 100) to (200, 200)
+        var poly = new List<Point2D>
+        {
+            new(100, 100),
+            new(200, 100),
+            new(200, 200),
+            new(100, 200)
+        };
+
+        // Marquee window completely containing the polygon
+        Assert.True(SpatialCalculator.IntersectsRect(poly, 50, 50, 250, 250));
+
+        // Marquee window partially intersecting the polygon
+        Assert.True(SpatialCalculator.IntersectsRect(poly, 150, 150, 300, 300));
+
+        // Marquee window completely outside
+        Assert.False(SpatialCalculator.IntersectsRect(poly, 300, 300, 400, 400));
+    }
 }

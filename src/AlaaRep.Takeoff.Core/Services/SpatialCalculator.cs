@@ -385,6 +385,46 @@ public static class SpatialCalculator
         return result;
     }
 
+    public static bool IntersectsRect(IReadOnlyList<Point2D> points, double rLeft, double rTop, double rRight, double rBottom)
+    {
+        if (points == null || points.Count == 0) return false;
+
+        double minX = Math.Min(rLeft, rRight);
+        double maxX = Math.Max(rLeft, rRight);
+        double minY = Math.Min(rTop, rBottom);
+        double maxY = Math.Max(rTop, rBottom);
+
+        // 1. Check if any point is inside the rect
+        foreach (var p in points)
+        {
+            if (p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY)
+                return true;
+        }
+
+        // 2. Check if polygon/segment edges intersect rectangle boundaries
+        if (points.Count >= 2)
+        {
+            var rCorners = new List<Point2D>
+            {
+                new(minX, minY),
+                new(maxX, minY),
+                new(maxX, maxY),
+                new(minX, maxY)
+            };
+
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                for (int j = 0; j < 4; j++)
+                {
+                    if (TryIntersectSegments(points[i], points[i + 1], rCorners[j], rCorners[(j + 1) % 4], out _, out _))
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static (double minX, double minY, double maxX, double maxY) GetBoundingBox(IReadOnlyList<Point2D> points)
     {
         double minX = double.MaxValue, minY = double.MaxValue;

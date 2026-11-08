@@ -10,6 +10,12 @@ public static class SpatialCalculator
     {
         if (polygon == null || polygon.Count < 3) return false;
 
+        // Try C++ native acceleration first
+        if (Native.NativeSpatialEngine.TryIsPointInPolygon(pt, polygon, out bool nativeInside))
+        {
+            return nativeInside;
+        }
+
         bool inside = false;
         int j = polygon.Count - 1;
 
@@ -32,6 +38,12 @@ public static class SpatialCalculator
     public static double CalculatePolygonArea(IReadOnlyList<Point2D> polygon)
     {
         if (polygon == null || polygon.Count < 3) return 0.0;
+
+        // Try C++ native acceleration first
+        if (Native.NativeSpatialEngine.TryCalculatePolygonArea(polygon, out double nativeArea))
+        {
+            return nativeArea;
+        }
 
         double sum = 0.0;
         int n = polygon.Count;
@@ -63,6 +75,12 @@ public static class SpatialCalculator
     {
         if (points == null || points.Count < 2) return 0.0;
 
+        // Try C++ native acceleration first
+        if (Native.NativeSpatialEngine.TryCalculatePolylineLength(points, out double nativeLen))
+        {
+            return nativeLen;
+        }
+
         double length = 0.0;
         for (int i = 0; i < points.Count - 1; i++)
         {
@@ -76,6 +94,12 @@ public static class SpatialCalculator
     {
         if (polyline == null || polyline.Count < 2 || zonePolygon == null || zonePolygon.Count < 3)
             return 0.0;
+
+        // Try C++ native acceleration first
+        if (Native.NativeSpatialEngine.TryCalculatePolylineLengthInZone(polyline, zonePolygon, out double nativeInside))
+        {
+            return nativeInside;
+        }
 
         double totalInsideLength = 0.0;
 
@@ -230,6 +254,12 @@ public static class SpatialCalculator
 
     public static double DistanceToSegmentWithProjection(Point2D p, Point2D v, Point2D w, out Point2D projection)
     {
+        if (Native.NativeSpatialEngine.TryDistanceToSegmentWithProjection(p, v, w, out var nativeProj, out double nativeDist))
+        {
+            projection = nativeProj;
+            return nativeDist;
+        }
+
         double l2 = (w.X - v.X) * (w.X - v.X) + (w.Y - v.Y) * (w.Y - v.Y);
         if (l2 < Epsilon)
         {

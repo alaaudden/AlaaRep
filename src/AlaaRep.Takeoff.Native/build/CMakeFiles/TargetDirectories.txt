@@ -1,0 +1,3 @@
+/app/src/AlaaRep.Takeoff.Native/build/CMakeFiles/takeoff_spatial.dir
+/app/src/AlaaRep.Takeoff.Native/build/CMakeFiles/edit_cache.dir
+/app/src/AlaaRep.Takeoff.Native/build/CMakeFiles/rebuild_cache.dir

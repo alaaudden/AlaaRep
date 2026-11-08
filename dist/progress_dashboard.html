@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Construction Executive Dashboard | Marina Commercial Tower - Update W12</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .nav-link.active {
+      background-color: #1e293b;
+      color: #38bdf8;
+      border-left: 3px solid #38bdf8;
+    }
+    .metric-card {
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease-in-out;
+    }
+    .metric-card:hover {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    }
+    .zone-polygon {
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+    .zone-polygon:hover {
+      filter: brightness(1.15) drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
+    }
+    .zone-polygon.selected {
+      stroke: #38bdf8 !important;
+      stroke-width: 3.5 !important;
+      filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.8));
+    }
+    @media print {
+      .no-print { display: none !important; }
+      .sidebar { display: none !important; }
+      .main-viewport { margin-left: 0 !important; width: 100% !important; }
+      body { background-color: #ffffff; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col md:flex-row antialiased">
+
+  <!-- SIDEBAR NAVIGATION PANEL -->
+  <aside class="sidebar w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col justify-between border-r border-slate-800 z-40 md:min-h-screen sticky top-0">
+    <div>
+      <!-- Brand & Project Selector -->
+      <div class="p-5 border-b border-slate-800">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-500/20">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-xs uppercase font-extrabold tracking-wider text-blue-400">Construction Suite</div>
+            <h1 class="text-sm font-bold text-white truncate" title="Marina Commercial Tower - Update W12">Marina Commercial Tower - Update W12</h1>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+          <span>Cut-off Date:</span>
+          <span class="font-semibold text-slate-200">2024-03-29</span>
+        </div>
+      </div>
+
+      <!-- Navigation Menu Items -->
+      <nav class="py-4 space-y-1">
+        <button onclick="switchView('overview')" id="nav-overview" class="nav-link active w-full flex items-center px-5 py-3 text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5 mr-3 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+          </svg>
+          <span>Overview & Layout</span>
+        </button>
+
+        <button onclick="switchView('lookahead')" id="nav-lookahead" class="nav-link w-full flex items-center px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5 mr-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span>Lookahead Schedule</span>
+        </button>
+
+        <button onclick="switchView('manpower')" id="nav-manpower" class="nav-link w-full flex items-center px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5 mr-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+          </svg>
+          <span>Manpower & Labor</span>
+        </button>
+
+        <button onclick="switchView('cashflow')" id="nav-cashflow" class="nav-link w-full flex items-center px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5 mr-3 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>Cashflow & Spend</span>
+        </button>
+
+        <button onclick="switchView('invoice')" id="nav-invoice" class="nav-link w-full flex items-center px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5 mr-3 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span>Invoice & Billing (IPC)</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Quick Controls: Load Custom Layout & Upload XER -->
+      <div class="px-5 py-4 border-t border-slate-800 space-y-2 no-print">
+        <label class="cursor-pointer w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-200 border border-slate-700 transition shadow-xs">
+          <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span>Load Custom Layout</span>
+          <input type="file" id="customLayoutInput" accept=".svg,.png,.jpg,.jpeg" class="hidden" onchange="handleCustomLayoutUpload(this)">
+        </label>
+
+        <button onclick="window.print()" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800/60 hover:bg-slate-800 text-xs font-semibold rounded-lg text-slate-300 border border-slate-700/60 transition">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          <span>Print / Export PDF</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sidebar Bottom Info -->
+    <div class="p-4 border-t border-slate-800/80 text-[11px] text-slate-400">
+      <div class="flex justify-between items-center">
+        <span>Baseline:</span>
+        <span class="text-slate-300 font-medium truncate max-w-[120px]">Marina Commercial Tower - Baseline</span>
+      </div>
+      <div class="flex justify-between items-center mt-1">
+        <span>Forecast Finish:</span>
+        <span class="text-slate-200 font-semibold">2024-11-15</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEWPORT -->
+  <div class="main-viewport flex-1 flex flex-col min-w-0 overflow-y-auto">
+
+    <!-- Top Sticky Header with Dynamic Filter Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs px-4 sm:px-6 py-3.5">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <!-- Title and Active View Breadcrumb -->
+        <div class="flex items-center space-x-3">
+          <h2 id="viewTitle" class="text-lg font-bold text-slate-900 tracking-tight">Overview & Interactive Layout</h2>
+          <span id="activeAreaBadge" class="hidden px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-200">
+            Filtered by Area: <span id="activeAreaNameText">All</span>
+          </span>
+        </div>
+
+        <!-- Filter Bar: Activity Codes, WBS Levels, Area Dropdowns -->
+        <div class="flex flex-wrap items-center gap-2.5 no-print text-xs">
+          <!-- Button 1: Upload Baseline -->
+          <label class="cursor-pointer inline-flex items-center px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold text-slate-200 transition shadow-xs gap-1.5">
+            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <span>Upload Baseline</span>
+            <input type="file" id="dashBaselineFile" accept=".xer" class="hidden" onchange="uploadDashboardBaseline(this)">
+          </label>
+
+          <!-- Button 2: Upload Update -->
+          <label class="cursor-pointer inline-flex items-center px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-semibold text-white transition shadow-xs gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            <span>Upload Update</span>
+            <input type="file" id="dashUpdateFile" accept=".xer" class="hidden" onchange="uploadDashboardUpdate(this)">
+          </label>
+
+          <!-- WBS Level Filter -->
+          <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+            <span class="text-slate-500 font-semibold">WBS:</span>
+            <select id="filterWbsLevel" onchange="applyGlobalFilters()" class="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer">
+              <option value="">All Levels</option>
+              <option value="1">Level 1</option><option value="2">Level 2</option>
+            </select>
+          </div>
+
+          <!-- Dynamic Activity Code Filters -->
+
+          <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+            <span class="text-slate-500 font-semibold">Project Area:</span>
+            <select id="filterActv_Project_Area" onchange="applyGlobalFilters()" class="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer">
+              <option value="">All Project Area</option>
+              <option value="ZONE-FIN">ZONE-FIN</option><option value="ZONE-MEP">ZONE-MEP</option><option value="ZONE-SITE">ZONE-SITE</option><option value="ZONE-SUB">ZONE-SUB</option><option value="ZONE-TOW">ZONE-TOW</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+            <span class="text-slate-500 font-semibold">Discipline:</span>
+            <select id="filterActv_Discipline" onchange="applyGlobalFilters()" class="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer">
+              <option value="">All Discipline</option>
+              <option value="ARCH">ARCH</option><option value="CIVIL">CIVIL</option><option value="MEP">MEP</option><option value="MGMT">MGMT</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+            <span class="text-slate-500 font-semibold">Phase:</span>
+            <select id="filterActv_Phase" onchange="applyGlobalFilters()" class="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer">
+              <option value="">All Phase</option>
+              <option value="PHASE-1">PHASE-1</option><option value="PHASE-2">PHASE-2</option><option value="PHASE-3">PHASE-3</option>
+            </select>
+          </div>
+
+
+          <!-- Reset Filters Button -->
+          <button onclick="resetAllFilters()" class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200 font-semibold rounded-lg transition">
+            Reset Filters
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT VIEWS CONTAINER -->
+    <main class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
+
+      <!-- ========================================== -->
+      <!-- VIEW 1: OVERVIEW & INTERACTIVE LAYOUT -->
+      <!-- ========================================== -->
+      <div id="view-overview" class="view-panel space-y-6">
+
+        <!-- Area KPI Scorecard (Updates dynamically when clicking on Layout Area) -->
+        <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-700/60">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-700/80">
+            <div>
+              <div class="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span id="selectedZoneLabel">Entire Project Performance</span>
+              </div>
+              <h3 id="selectedZoneName" class="text-xl font-bold text-white mt-0.5">Marina Commercial Tower (All Zones)</h3>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="resetAreaSelection()" id="btnResetArea" class="hidden px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-500/20 text-sky-300 border border-sky-400/30 hover:bg-sky-500/30 transition">
+                Show Overall Project
+              </button>
+              <span id="selectedZoneStatusBadge" class="px-3 py-1 text-xs font-bold rounded-full text-rose-600 bg-rose-50 border-rose-200">
+                Behind Schedule
+              </span>
+            </div>
+          </div>
+
+          <!-- Dynamic Area / Project KPI Cards Grid -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
+              <div class="text-xs text-slate-400 uppercase font-medium">Actual Progress</div>
+              <div class="mt-1 flex items-baseline gap-2">
+                <span id="kpiActualPct" class="text-2xl font-extrabold text-white">33.8%</span>
+                <span class="text-xs text-slate-400">/ <span id="kpiPlannedPct">39.72%</span> Plan</span>
+              </div>
+              <div class="w-full bg-slate-700 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div id="kpiProgressBar" class="bg-sky-400 h-1.5 rounded-full" style="width: 33.8%"></div>
+              </div>
+            </div>
+
+            <div class="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
+              <div class="text-xs text-slate-400 uppercase font-medium">Schedule Index (SPI)</div>
+              <div class="mt-1 flex items-baseline gap-2">
+                <span id="kpiSpi" class="text-2xl font-extrabold text-white">0.85</span>
+                <span id="kpiVarianceDays" class="text-xs font-semibold text-rose-400">
+                  +15d slip
+                </span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-1">Variance: <span id="kpiVariancePct" class="font-bold">-5.92%</span></div>
+            </div>
+
+            <div class="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
+              <div class="text-xs text-slate-400 uppercase font-medium">Active Tasks</div>
+              <div class="mt-1 flex items-baseline gap-2">
+                <span id="kpiActiveTasks" class="text-2xl font-extrabold text-white">4</span>
+                <span class="text-xs text-slate-400">/ <span id="kpiTotalTasks">27</span> total</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-1"><span id="kpiDoneTasks" class="text-emerald-400 font-bold">9</span> completed</div>
+            </div>
+
+            <div class="bg-slate-800/70 p-4 rounded-xl border border-slate-700">
+              <div class="text-xs text-slate-400 uppercase font-medium">Critical Items</div>
+              <div class="mt-1 flex items-baseline gap-2">
+                <span id="kpiCriticalTasks" class="text-2xl font-extrabold text-rose-400">15</span>
+                <span class="text-xs text-slate-400">Total Float &le; 0</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mt-1"><span id="kpiDelayedTasks" class="text-amber-400 font-bold">22</span> tasks delayed</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Layout Section & S-Curve 2-Column -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          <!-- Column 1: Interactive Layout Map (Clickable Areas) -->
+          <div class="lg:col-span-7 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>Interactive Construction Layout</span>
+                    <span class="text-xs font-normal text-slate-500">(Click any area to inspect its KPI)</span>
+                  </h3>
+                  <p class="text-xs text-slate-500">Zoning plan linked directly to Primavera P6 activity codes and schedule packages</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="cursor-pointer inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition gap-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <span>Load Custom Layout</span>
+                    <input type="file" accept=".svg,.png,.jpg" class="hidden" onchange="handleCustomLayoutUpload(this)">
+                  </label>
+                </div>
+              </div>
+
+              <!-- SVG Interactive Layout Container -->
+              <div id="layoutContainer" class="w-full bg-slate-950 rounded-xl p-4 border border-slate-800 relative overflow-hidden flex items-center justify-center min-h-[320px]">
+                <svg id="interactiveSiteSvg" viewBox="0 0 800 480" class="w-full h-auto max-h-[360px] select-none">
+                  <!-- Architectural Grid Background -->
+                  <defs>
+                    <pattern id="siteGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.75" />
+                    </pattern>
+                  </defs>
+                  <rect width="800" height="480" fill="url(#siteGrid)" />
+
+                  <!-- ZONE 1: Substructure & Foundation (ZONE-SUB) -->
+                  <g class="zone-group" data-zone="ZONE-SUB" onclick="selectArea('ZONE-SUB', 'Substructure & Foundation')">
+                    <polygon class="zone-polygon" points="60,260 340,260 340,420 60,420" fill="#3b82f6" fill-opacity="0.3" stroke="#60a5fa" stroke-width="2"/>
+                    <text x="200" y="330" fill="#93c5fd" font-weight="bold" font-size="14" text-anchor="middle">ZONE-SUB</text>
+                    <text x="200" y="352" fill="#cbd5e1" font-size="11" text-anchor="middle">Substructure & Foundation</text>
+                  </g>
+
+                  <!-- ZONE 2: Superstructure Tower (ZONE-TOW) -->
+                  <g class="zone-group" data-zone="ZONE-TOW" onclick="selectArea('ZONE-TOW', 'Superstructure Tower')">
+                    <polygon class="zone-polygon" points="120,60 340,60 340,240 120,240" fill="#8b5cf6" fill-opacity="0.35" stroke="#a78bfa" stroke-width="2"/>
+                    <text x="230" y="140" fill="#c4b5fd" font-weight="bold" font-size="15" text-anchor="middle">ZONE-TOW</text>
+                    <text x="230" y="162" fill="#cbd5e1" font-size="11" text-anchor="middle">Superstructure Tower Core</text>
+                  </g>
+
+                  <!-- ZONE 3: MEP Plant & Core (ZONE-MEP) -->
+                  <g class="zone-group" data-zone="ZONE-MEP" onclick="selectArea('ZONE-MEP', 'MEP Plant & Core')">
+                    <polygon class="zone-polygon" points="360,60 520,60 520,240 360,240" fill="#f59e0b" fill-opacity="0.3" stroke="#fbbf24" stroke-width="2"/>
+                    <text x="440" y="140" fill="#fde68a" font-weight="bold" font-size="14" text-anchor="middle">ZONE-MEP</text>
+                    <text x="440" y="162" fill="#cbd5e1" font-size="11" text-anchor="middle">Central MEP Plant</text>
+                  </g>
+
+                  <!-- ZONE 4: Interior Finishes & Facade (ZONE-FIN) -->
+                  <g class="zone-group" data-zone="ZONE-FIN" onclick="selectArea('ZONE-FIN', 'Interior Finishes & Facade')">
+                    <polygon class="zone-polygon" points="360,260 580,260 580,420 360,420" fill="#10b981" fill-opacity="0.3" stroke="#34d399" stroke-width="2"/>
+                    <text x="470" y="330" fill="#a7f3d0" font-weight="bold" font-size="14" text-anchor="middle">ZONE-FIN</text>
+                    <text x="470" y="352" fill="#cbd5e1" font-size="11" text-anchor="middle">Finishes & Curtain Wall</text>
+                  </g>
+
+                  <!-- ZONE 5: Site Works & Logistics (ZONE-SITE) -->
+                  <g class="zone-group" data-zone="ZONE-SITE" onclick="selectArea('ZONE-SITE', 'Site Works & Infrastructure')">
+                    <polygon class="zone-polygon" points="540,60 740,60 740,240 540,240" fill="#06b6d4" fill-opacity="0.25" stroke="#22d3ee" stroke-width="2"/>
+                    <polygon class="zone-polygon" points="600,260 740,260 740,420 600,420" fill="#06b6d4" fill-opacity="0.25" stroke="#22d3ee" stroke-width="2"/>
+                    <text x="640" y="140" fill="#a5f3fc" font-weight="bold" font-size="14" text-anchor="middle">ZONE-SITE</text>
+                    <text x="640" y="162" fill="#cbd5e1" font-size="11" text-anchor="middle">Infrastructure & Logistics</text>
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Area Quick Badges -->
+            <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+              <span class="text-xs font-semibold text-slate-500">Fast Area Select:</span>
+
+              <button onclick="selectArea('ZONE-FIN', 'Interior Finishes & Facade')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 transition">
+                Interior Finishes & Facade (16.8%)
+              </button>
+
+              <button onclick="selectArea('ZONE-MEP', 'MEP Plant & Core')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 transition">
+                MEP Plant & Core (27.9%)
+              </button>
+
+              <button onclick="selectArea('ZONE-SITE', 'Site Works & Infrastructure')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 transition">
+                Site Works & Infrastructure (76.9%)
+              </button>
+
+              <button onclick="selectArea('ZONE-SUB', 'Substructure & Foundation')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 transition">
+                Substructure & Foundation (70.0%)
+              </button>
+
+              <button onclick="selectArea('ZONE-TOW', 'Superstructure Tower')" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 transition">
+                Superstructure Tower (0.0%)
+              </button>
+
+            </div>
+          </div>
+
+          <!-- Column 2: Cumulative S-Curve Chart -->
+          <div class="lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-base font-bold text-slate-900">Project S-Curve</h3>
+                <span class="text-xs font-semibold text-slate-400">Cut-off 2024-03-29</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4">Planned baseline cumulative progression vs actual earned progress</p>
+              <div class="w-full h-64 relative">
+                <canvas id="overviewScurveChart"></canvas>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-500">
+              <span class="inline-flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-slate-400 mr-1.5"></span> Planned</span>
+              <span class="inline-flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-blue-600 mr-1.5"></span> Actual to Date</span>
+              <span class="inline-flex items-center"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 mr-1.5"></span> Forecast</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Two Column: WBS Breakdown & Milestones -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- WBS Progress Breakdown -->
+          <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">WBS Level Progress Rollup</h3>
+                <p class="text-xs text-slate-500">Weight-based duration aggregation per work package</p>
+              </div>
+            </div>
+            <div class="space-y-3.5 max-h-[380px] overflow-y-auto pr-1" id="wbsProgressContainer">
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Marina Commercial Tower</span>
+                  <span class="text-slate-500 font-medium">0.0% / <span class="text-slate-400">0.0% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-emerald-500 h-2 rounded-full" style="width: 0.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>1 Tasks (1 Done, 0 Active)</span>
+                  <span class="font-semibold text-emerald-600">
+                    Var: +0.0%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Engineering & Approvals</span>
+                  <span class="text-slate-500 font-medium">100.0% / <span class="text-slate-400">100.0% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-emerald-500 h-2 rounded-full" style="width: 100.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>4 Tasks (4 Done, 0 Active)</span>
+                  <span class="font-semibold text-emerald-600">
+                    Var: +0.0%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Procurement & Subcontracts</span>
+                  <span class="text-slate-500 font-medium">64.0% / <span class="text-slate-400">84.3% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-blue-600 h-2 rounded-full" style="width: 64.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>3 Tasks (1 Done, 2 Active)</span>
+                  <span class="font-semibold text-rose-600">
+                    Var: -20.3%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Substructure & Piling</span>
+                  <span class="text-slate-500 font-medium">56.0% / <span class="text-slate-400">64.8% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-blue-600 h-2 rounded-full" style="width: 56.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>6 Tasks (3 Done, 1 Active)</span>
+                  <span class="font-semibold text-rose-600">
+                    Var: -8.8%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Superstructure & Concrete</span>
+                  <span class="text-slate-500 font-medium">0.0% / <span class="text-slate-400">0.0% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-emerald-500 h-2 rounded-full" style="width: 0.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>4 Tasks (0 Done, 0 Active)</span>
+                  <span class="font-semibold text-emerald-600">
+                    Var: +0.0%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">MEP First Fix & Rough-in</span>
+                  <span class="text-slate-500 font-medium">5.3% / <span class="text-slate-400">10.9% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-blue-600 h-2 rounded-full" style="width: 5.3%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>3 Tasks (0 Done, 1 Active)</span>
+                  <span class="font-semibold text-rose-600">
+                    Var: -5.6%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Architectural Finishes</span>
+                  <span class="text-slate-500 font-medium">0.0% / <span class="text-slate-400">0.0% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-emerald-500 h-2 rounded-full" style="width: 0.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>3 Tasks (0 Done, 0 Active)</span>
+                  <span class="font-semibold text-emerald-600">
+                    Var: +0.0%
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                  <span class="font-bold text-slate-800">Testing & Handover</span>
+                  <span class="text-slate-500 font-medium">0.0% / <span class="text-slate-400">0.0% Plan</span></span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+                  <div class="bg-emerald-500 h-2 rounded-full" style="width: 0.0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+                  <span>3 Tasks (0 Done, 0 Active)</span>
+                  <span class="font-semibold text-emerald-600">
+                    Var: +0.0%
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Key Project Milestones -->
+          <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-slate-900">Key Project Milestones</h3>
+                <p class="text-xs text-slate-500">Critical target completions vs forecasted actuals</p>
+              </div>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">4 Milestones</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[10px]">
+                  <tr>
+                    <th class="py-2.5 px-3">Milestone Name</th>
+                    <th class="py-2.5 px-2">BL Date</th>
+                    <th class="py-2.5 px-2">Forecast</th>
+                    <th class="py-2.5 px-2 text-center">Variance</th>
+                    <th class="py-2.5 px-2 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="py-2.5 px-3 font-semibold text-slate-800">
+                      <div>Notice to Proceed (NTP)</div>
+                      <div class="text-[10px] text-slate-400 font-mono">M1000</div>
+                    </td>
+                    <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap">2024-01-08</td>
+                    <td class="py-2.5 px-2 font-medium text-slate-900 whitespace-nowrap">2024-01-08</td>
+                    <td class="py-2.5 px-2 text-center font-bold whitespace-nowrap text-slate-500">
+                      0d
+                    </td>
+                    <td class="py-2.5 px-2 text-right whitespace-nowrap">
+                      <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                        Completed
+                      </span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="py-2.5 px-3 font-semibold text-slate-800">
+                      <div>Foundation Approval Milestone</div>
+                      <div class="text-[10px] text-slate-400 font-mono">M1010</div>
+                    </td>
+                    <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap">2024-02-16</td>
+                    <td class="py-2.5 px-2 font-medium text-slate-900 whitespace-nowrap">2024-02-23</td>
+                    <td class="py-2.5 px-2 text-center font-bold whitespace-nowrap text-rose-600">
+                      +7d
+                    </td>
+                    <td class="py-2.5 px-2 text-right whitespace-nowrap">
+                      <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                        Completed
+                      </span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="py-2.5 px-3 font-semibold text-slate-800">
+                      <div>Superstructure Topping Out</div>
+                      <div class="text-[10px] text-slate-400 font-mono">M1020</div>
+                    </td>
+                    <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap">2024-07-26</td>
+                    <td class="py-2.5 px-2 font-medium text-slate-900 whitespace-nowrap">2024-08-09</td>
+                    <td class="py-2.5 px-2 text-center font-bold whitespace-nowrap text-rose-600">
+                      +14d
+                    </td>
+                    <td class="py-2.5 px-2 text-right whitespace-nowrap">
+                      <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                        Not Started
+                      </span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-slate-50 transition">
+                    <td class="py-2.5 px-3 font-semibold text-slate-800">
+                      <div>Project Substantial Completion</div>
+                      <div class="text-[10px] text-slate-400 font-mono">M1030</div>
+                    </td>
+                    <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap">2024-10-31</td>
+                    <td class="py-2.5 px-2 font-medium text-slate-900 whitespace-nowrap">2024-11-15</td>
+                    <td class="py-2.5 px-2 text-center font-bold whitespace-nowrap text-rose-600">
+                      +15d
+                    </td>
+                    <td class="py-2.5 px-2 text-right whitespace-nowrap">
+                      <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                        Not Started
+                      </span>
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Critical Path & Delayed Activities Watchlist -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Critical Path & Delayed Activities Watchlist</h3>
+              <p class="text-xs text-slate-500">Activities with Total Float &le; 0 or finish date slipping behind baseline</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="text" id="overviewTableSearch" onkeyup="filterActivitiesTable()" placeholder="Search activities, ID or zone..." class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 sm:w-64">
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border border-slate-100 rounded-xl" id="masterActivityTable">
+              <thead class="bg-slate-100 text-slate-600 font-semibold uppercase text-[10px] border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Activity ID</th>
+                  <th class="py-2.5 px-3">Activity Description</th>
+                  <th class="py-2.5 px-2">Area / Zone</th>
+                  <th class="py-2.5 px-2">WBS</th>
+                  <th class="py-2.5 px-2">Status</th>
+                  <th class="py-2.5 px-2">Target Finish</th>
+                  <th class="py-2.5 px-2">Forecast Finish</th>
+                  <th class="py-2.5 px-2 text-center">Variance</th>
+                  <th class="py-2.5 px-2 text-center">Total Float</th>
+                  <th class="py-2.5 px-2 text-center">% Comp</th>
+                </tr>
+              </thead>
+              <tbody id="masterTableBody" class="divide-y divide-slate-100">
+                <!-- Dynamically populated via JavaScript for instant filtering -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW 2: LOOKAHEAD SCHEDULE -->
+      <!-- ========================================== -->
+      <div id="view-lookahead" class="view-panel hidden space-y-6">
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Lookahead Schedule Management</h3>
+              <p class="text-xs text-slate-500">Activities currently in progress or scheduled to commence within the rolling window</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button onclick="setLookaheadDays(30)" id="btnLookahead30" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition">30-Day Window</button>
+              <button onclick="setLookaheadDays(60)" id="btnLookahead60" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition">60-Day Window</button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border border-slate-100" id="lookaheadTable">
+              <thead class="bg-slate-100 text-slate-600 font-semibold uppercase text-[10px] border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Activity ID</th>
+                  <th class="py-2.5 px-3">Activity Description</th>
+                  <th class="py-2.5 px-2">Area</th>
+                  <th class="py-2.5 px-2">Forecast Start</th>
+                  <th class="py-2.5 px-2">Forecast Finish</th>
+                  <th class="py-2.5 px-2 text-center">Remaining Days</th>
+                  <th class="py-2.5 px-2 text-center">Total Float</th>
+                  <th class="py-2.5 px-2 text-center">% Comp</th>
+                  <th class="py-2.5 px-3">Lookahead Status</th>
+                </tr>
+              </thead>
+              <tbody id="lookaheadTableBody" class="divide-y divide-slate-100">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW 3: MANPOWER & LABOR PROFILE -->
+      <!-- ========================================== -->
+      <div id="view-manpower" class="view-panel hidden space-y-6">
+        <!-- Manpower KPI Row -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white rounded-xl p-5 border border-slate-200 metric-card">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Peak Site Headcount</span>
+            <div class="mt-2 text-3xl font-extrabold text-slate-900">17.0 Workers</div>
+            <p class="text-xs text-slate-500 mt-1">Projected peak workforce staffing requirement</p>
+          </div>
+
+          <div class="bg-white rounded-xl p-5 border border-slate-200 metric-card">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Actual Labor Hours Spent</span>
+            <div class="mt-2 text-3xl font-extrabold text-blue-600">6,452.0 hrs</div>
+            <p class="text-xs text-slate-500 mt-1">Cumulative manhours recorded through cut-off</p>
+          </div>
+
+          <div class="bg-white rounded-xl p-5 border border-slate-200 metric-card">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Planned Budget Hours</span>
+            <div class="mt-2 text-3xl font-extrabold text-slate-700">21,360.0 hrs</div>
+            <p class="text-xs text-slate-500 mt-1">Total baseline resource allowance</p>
+          </div>
+        </div>
+
+        <!-- Manpower Monthly Histogram Chart -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Monthly Labor Hours & Headcount Distribution</h3>
+              <p class="text-xs text-slate-500">Planned vs actual monthly labor hours with headcount curve</p>
+            </div>
+          </div>
+          <div class="w-full h-80 relative">
+            <canvas id="manpowerChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Craft Distribution Breakdown Table -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <h3 class="text-base font-bold text-slate-900 mb-4">Trade & Craft Labor Hours Allocation</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border border-slate-100">
+              <thead class="bg-slate-100 text-slate-600 font-semibold uppercase text-[10px] border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Trade / Craft Discipline</th>
+                  <th class="py-2.5 px-3 text-right">Planned Hours</th>
+                  <th class="py-2.5 px-3 text-right">Actual Hours</th>
+                  <th class="py-2.5 px-3 text-right">% Completed</th>
+                  <th class="py-2.5 px-3">Progress</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-semibold text-slate-800">Civil & Structural</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">6,600.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-blue-600">3,080.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-bold text-slate-900">46.7%</td>
+                  <td class="py-3 px-3 w-48">
+                    <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div class="bg-blue-600 h-2 rounded-full" style="width: 46.7%"></div>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-semibold text-slate-800">MEP Trades</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">6,800.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-blue-600">1,900.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-bold text-slate-900">27.9%</td>
+                  <td class="py-3 px-3 w-48">
+                    <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div class="bg-blue-600 h-2 rounded-full" style="width: 27.9%"></div>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-semibold text-slate-800">Finishes & Facade</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">6,400.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-blue-600">1,040.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-bold text-slate-900">16.2%</td>
+                  <td class="py-3 px-3 w-48">
+                    <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div class="bg-blue-600 h-2 rounded-full" style="width: 16.2%"></div>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-semibold text-slate-800">Supervision & PM</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">1,560.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-blue-600">1,200.0 hrs</td>
+                  <td class="py-3 px-3 text-right font-bold text-slate-900">76.9%</td>
+                  <td class="py-3 px-3 w-48">
+                    <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                      <div class="bg-blue-600 h-2 rounded-full" style="width: 76.9%"></div>
+                    </div>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW 4: CASHFLOW & SPEND PROFILE -->
+      <!-- ========================================== -->
+      <div id="view-cashflow" class="view-panel hidden space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white rounded-xl p-5 border border-slate-200 metric-card">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Contract Budget</span>
+            <div class="mt-2 text-3xl font-extrabold text-slate-900">$939,840.00</div>
+            <p class="text-xs text-slate-500 mt-1">Total contract baseline valuation</p>
+          </div>
+
+          <div class="bg-white rounded-xl p-5 border border-slate-200 metric-card">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Earned Value (EV)</span>
+            <div class="mt-2 text-3xl font-extrabold text-blue-600">$317,680.00</div>
+            <p class="text-xs text-slate-500 mt-1">Budget cost of work performed to date</p>
+          </div>
+
+          <div class="bg-white rounded-xl p-5 border border-slate-200 metric-card">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cost Performance Index (CPI)</span>
+            <div class="mt-2 text-3xl font-extrabold text-emerald-600">1.0</div>
+            <p class="text-xs text-slate-500 mt-1">Earned value / actual cost spent efficiency</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Cumulative Cashflow Curve & Monthly Billing</h3>
+              <p class="text-xs text-slate-500">Planned cumulative spend vs actual/forecast expenditures</p>
+            </div>
+          </div>
+          <div class="w-full h-80 relative">
+            <canvas id="cashflowChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- VIEW 5: INVOICE & BILLING (IPC) -->
+      <!-- ========================================== -->
+      <div id="view-invoice" class="view-panel hidden space-y-6">
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Contractor Interim Payment Certificates (IPC)</h3>
+              <p class="text-xs text-slate-500">Progress billing summary, 10% retainage withholding, and certified payments</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border border-slate-100">
+              <thead class="bg-slate-100 text-slate-600 font-semibold uppercase text-[10px] border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Certificate No.</th>
+                  <th class="py-2.5 px-3">Valuation Period</th>
+                  <th class="py-2.5 px-3 text-right">Gross Claimed</th>
+                  <th class="py-2.5 px-3 text-right">Retention (10%)</th>
+                  <th class="py-2.5 px-3 text-right">Advance Recovery (5%)</th>
+                  <th class="py-2.5 px-3 text-right">Net Payable</th>
+                  <th class="py-2.5 px-3 text-right">Cumulative Certified</th>
+                  <th class="py-2.5 px-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-mono font-bold text-slate-900">IPC-01</td>
+                  <td class="py-3 px-3 font-medium text-slate-700">Jan 2024</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">$74,518.22</td>
+                  <td class="py-3 px-3 text-right font-mono text-rose-600">-$7,451.82</td>
+                  <td class="py-3 px-3 text-right font-mono text-amber-600">-$3,725.91</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">$63,340.49</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-800 font-semibold">$63,340.49</td>
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
+                    <span class="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                      Paid
+                    </span>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-mono font-bold text-slate-900">IPC-02</td>
+                  <td class="py-3 px-3 font-medium text-slate-700">Feb 2024</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">$130,461.92</td>
+                  <td class="py-3 px-3 text-right font-mono text-rose-600">-$13,046.19</td>
+                  <td class="py-3 px-3 text-right font-mono text-amber-600">-$6,523.10</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">$110,892.63</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-800 font-semibold">$174,233.12</td>
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
+                    <span class="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                      Paid
+                    </span>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="py-3 px-3 font-mono font-bold text-slate-900">IPC-03</td>
+                  <td class="py-3 px-3 font-medium text-slate-700">Mar 2024</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-600">$89,168.71</td>
+                  <td class="py-3 px-3 text-right font-mono text-rose-600">-$8,916.87</td>
+                  <td class="py-3 px-3 text-right font-mono text-amber-600">-$4,458.44</td>
+                  <td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">$75,793.40</td>
+                  <td class="py-3 px-3 text-right font-mono text-slate-800 font-semibold">$250,026.52</td>
+                  <td class="py-3 px-3 text-right whitespace-nowrap">
+                    <span class="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">
+                      Certified - Pending Payment
+                    </span>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto py-3 px-6 text-center text-xs text-slate-400">
+      Primavera P6 Continuance Executive Construction Dashboard • Data Date: 2024-03-29
+    </footer>
+
+  </div>
+
+  <!-- EMBEDDED PROJECT DATA & CLIENT LOGIC -->
+  <script>
+    const projectData = {"project_info": {"project_name": "Marina Commercial Tower - Update W12", "baseline_name": "Marina Commercial Tower - Baseline", "update_name": "Marina Commercial Tower - Update W12", "data_date": "2024-03-29", "baseline_start": "2024-01-08", "baseline_finish": "2024-10-31", "forecast_finish": "2024-11-15", "schedule_slippage_days": 15, "contract_value": 939840.0, "earned_value": 317680.0, "actual_cost": 317680.0, "cpi": 1.0}, "summary": {"overall_progress_planned": 39.72, "overall_progress_actual": 33.8, "schedule_variance_pct": -5.92, "spi": 0.85, "cpi": 1.0, "status_indicator": "Behind Schedule", "total_activities": 27, "total_milestones": 4, "status_counts": {"Completed": 9, "In Progress": 4, "Not Started": 14}, "delay_counts": {"Delayed": 22, "On Track": 1, "Ahead": 0}, "float_dist": {"Critical (<=0d)": 15, "Near Critical (1-10d)": 3, "Healthy (>10d)": 0}}, "wbs_summary": [{"wbs_id": "1", "wbs_code": "MCT", "wbs_name": "Marina Commercial Tower", "parent_wbs_id": "", "level": 1, "path": "MCT", "weight": 0.0, "planned_earned_dur": 0.0, "actual_earned_dur": 0.0, "total_tasks": 1, "completed_tasks": 1, "in_progress_tasks": 0, "critical_tasks": 0, "delayed_tasks": 0, "planned_pct": 0.0, "actual_pct": 0.0, "var_pct": 0.0}, {"wbs_id": "2", "wbs_code": "MCT.ENG", "wbs_name": "Engineering & Approvals", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.ENG", "weight": 70.0, "planned_earned_dur": 70.0, "actual_earned_dur": 70.0, "total_tasks": 4, "completed_tasks": 4, "in_progress_tasks": 0, "critical_tasks": 0, "delayed_tasks": 3, "planned_pct": 100.0, "actual_pct": 100.0, "var_pct": 0.0}, {"wbs_id": "3", "wbs_code": "MCT.PROC", "wbs_name": "Procurement & Subcontracts", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.PROC", "weight": 100.0, "planned_earned_dur": 84.26229508196721, "actual_earned_dur": 64.0, "total_tasks": 3, "completed_tasks": 1, "in_progress_tasks": 2, "critical_tasks": 0, "delayed_tasks": 3, "planned_pct": 84.3, "actual_pct": 64.0, "var_pct": -20.3}, {"wbs_id": "4", "wbs_code": "MCT.SUB", "wbs_name": "Substructure & Piling", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.SUB", "weight": 75.0, "planned_earned_dur": 48.57142857142857, "actual_earned_dur": 42.0, "total_tasks": 6, "completed_tasks": 3, "in_progress_tasks": 1, "critical_tasks": 3, "delayed_tasks": 6, "planned_pct": 64.8, "actual_pct": 56.0, "var_pct": -8.8}, {"wbs_id": "5", "wbs_code": "MCT.SUP", "wbs_name": "Superstructure & Concrete", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.SUP", "weight": 60.0, "planned_earned_dur": 0.0, "actual_earned_dur": 0.0, "total_tasks": 4, "completed_tasks": 0, "in_progress_tasks": 0, "critical_tasks": 4, "delayed_tasks": 4, "planned_pct": 0.0, "actual_pct": 0.0, "var_pct": 0.0}, {"wbs_id": "6", "wbs_code": "MCT.MEP", "wbs_name": "MEP First Fix & Rough-in", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.MEP", "weight": 85.0, "planned_earned_dur": 9.285714285714286, "actual_earned_dur": 4.5, "total_tasks": 3, "completed_tasks": 0, "in_progress_tasks": 1, "critical_tasks": 2, "delayed_tasks": 3, "planned_pct": 10.9, "actual_pct": 5.3, "var_pct": -5.6}, {"wbs_id": "7", "wbs_code": "MCT.FIN", "wbs_name": "Architectural Finishes", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.FIN", "weight": 115.0, "planned_earned_dur": 0.0, "actual_earned_dur": 0.0, "total_tasks": 3, "completed_tasks": 0, "in_progress_tasks": 0, "critical_tasks": 3, "delayed_tasks": 3, "planned_pct": 0.0, "actual_pct": 0.0, "var_pct": 0.0}, {"wbs_id": "8", "wbs_code": "MCT.CLO", "wbs_name": "Testing & Handover", "parent_wbs_id": "1", "level": 2, "path": "MCT > MCT.CLO", "weight": 29.0, "planned_earned_dur": 0.0, "actual_earned_dur": 0.0, "total_tasks": 3, "completed_tasks": 0, "in_progress_tasks": 0, "critical_tasks": 3, "delayed_tasks": 3, "planned_pct": 0.0, "actual_pct": 0.0, "var_pct": 0.0}], "areas_summary": [{"area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "weight": 155.0, "planned_earned_dur": 34.75409836065574, "actual_earned_dur": 26.0, "total_tasks": 4, "completed_tasks": 0, "in_progress_tasks": 1, "critical_tasks": 3, "delayed_tasks": 4, "target_cost": 272800.0, "act_cost": 45760.0, "planned_pct": 22.4, "actual_pct": 16.8, "var_pct": -5.6, "spi": 0.75, "status_indicator": "Behind"}, {"area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "weight": 170.0, "planned_earned_dur": 63.79391100702576, "actual_earned_dur": 47.5, "total_tasks": 6, "completed_tasks": 1, "in_progress_tasks": 2, "critical_tasks": 3, "delayed_tasks": 6, "target_cost": 299200.0, "act_cost": 83600.0, "planned_pct": 37.5, "actual_pct": 27.9, "var_pct": -9.6, "spi": 0.74, "status_indicator": "Behind"}, {"area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "weight": 39.0, "planned_earned_dur": 30.0, "actual_earned_dur": 30.0, "total_tasks": 5, "completed_tasks": 3, "in_progress_tasks": 0, "critical_tasks": 2, "delayed_tasks": 3, "target_cost": 68640.0, "act_cost": 52800.0, "planned_pct": 76.9, "actual_pct": 76.9, "var_pct": 0.0, "spi": 1.0, "status_indicator": "On Track"}, {"area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "weight": 110.0, "planned_earned_dur": 83.57142857142857, "actual_earned_dur": 77.0, "total_tasks": 8, "completed_tasks": 5, "in_progress_tasks": 1, "critical_tasks": 3, "delayed_tasks": 8, "target_cost": 193600.0, "act_cost": 135520.0, "planned_pct": 76.0, "actual_pct": 70.0, "var_pct": -6.0, "spi": 0.92, "status_indicator": "Behind"}, {"area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "weight": 60.0, "planned_earned_dur": 0.0, "actual_earned_dur": 0.0, "total_tasks": 4, "completed_tasks": 0, "in_progress_tasks": 0, "critical_tasks": 4, "delayed_tasks": 4, "target_cost": 105600.0, "act_cost": 0.0, "planned_pct": 0.0, "actual_pct": 0.0, "var_pct": 0.0, "spi": 1.0, "status_indicator": "On Track"}], "filters_meta": {"wbs_levels": [1, 2], "activity_codes": {"Project Area": ["ZONE-FIN", "ZONE-MEP", "ZONE-SITE", "ZONE-SUB", "ZONE-TOW"], "Discipline": ["ARCH", "CIVIL", "MEP", "MGMT"], "Phase": ["PHASE-1", "PHASE-2", "PHASE-3"]}, "areas": [{"code": "ZONE-FIN", "name": "Interior Finishes & Facade"}, {"code": "ZONE-MEP", "name": "MEP Plant & Core"}, {"code": "ZONE-SITE", "name": "Site Works & Infrastructure"}, {"code": "ZONE-SUB", "name": "Substructure & Foundation"}, {"code": "ZONE-TOW", "name": "Superstructure Tower"}], "statuses": ["Completed", "In Progress", "Not Started"]}, "milestones": [{"task_id": "101", "task_code": "M1000", "task_name": "Notice to Proceed (NTP)", "wbs_id": "1", "wbs_name": "Marina Commercial Tower", "wbs_code": "MCT", "wbs_level": 1, "wbs_path": "MCT", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": true, "status": "Completed", "weight": 0.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-08", "bl_end": "2024-01-08", "curr_start": "2024-01-08", "curr_end": "2024-01-08", "start_var_days": 0, "finish_var_days": 0, "total_float_days": 0.0, "is_critical": false, "delay_status": "On Track", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "101", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "101", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}, {"task_id": "102", "task_code": "M1010", "task_name": "Foundation Approval Milestone", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": true, "status": "Completed", "weight": 0.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-02-16", "bl_end": "2024-02-16", "curr_start": "2024-02-23", "curr_end": "2024-02-23", "start_var_days": 7, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "102", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "102", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}, {"task_id": "103", "task_code": "M1020", "task_name": "Superstructure Topping Out", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": true, "status": "Not Started", "weight": 0.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-26", "bl_end": "2024-07-26", "curr_start": "2024-08-09", "curr_end": "2024-08-09", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "103", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "103", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}, {"task_id": "104", "task_code": "M1030", "task_name": "Project Substantial Completion", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": true, "status": "Not Started", "weight": 0.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-10-31", "bl_end": "2024-10-31", "curr_start": "2024-11-15", "curr_end": "2024-11-15", "start_var_days": 15, "finish_var_days": 15, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "104", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "104", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}], "critical_activities": [{"task_id": "403", "task_code": "SUB1030", "task_name": "Cast Concrete Piles & Pile Caps", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 80.0, "pct_variance": -20.0, "bl_start": "2024-03-04", "bl_end": "2024-03-22", "curr_start": "2024-03-08", "curr_end": "2024-04-05", "start_var_days": 4, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 21120.0, "target_durn_days": 15.0, "remain_durn_days": 3.0, "resources": [{"task_id": "403", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 384.0, "remain_qty": 96.0, "target_cost": 26400.0, "act_cost": 21120.0, "raw": {"task_id": "403", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "96.0", "act_qty": "384.0", "target_cost": "26400.00", "act_cost": "21120.00"}}]}, {"task_id": "404", "task_code": "SUB1040", "task_name": "Raft Foundation Waterproofing & Casting", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 23.8, "actual_pct": 0.0, "pct_variance": -23.8, "bl_start": "2024-03-25", "bl_end": "2024-04-12", "curr_start": "2024-04-08", "curr_end": "2024-04-26", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "404", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "404", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "405", "task_code": "SUB1050", "task_name": "Basement Retaining Walls & SOG", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-04-15", "bl_end": "2024-05-03", "curr_start": "2024-04-29", "curr_end": "2024-05-17", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "405", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "405", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "501", "task_code": "SUP1010", "task_name": "Ground Floor Columns & Elevated Slab", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-06", "bl_end": "2024-05-24", "curr_start": "2024-05-20", "curr_end": "2024-06-07", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "501", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "501", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "502", "task_code": "SUP1020", "task_name": "Floors 1 to 5 Concrete Framing", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 30.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-27", "bl_end": "2024-07-05", "curr_start": "2024-06-10", "curr_end": "2024-07-19", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 52800.0, "act_cost": 0.0, "target_durn_days": 30.0, "remain_durn_days": 30.0, "resources": [{"task_id": "502", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 960.0, "act_qty": 0.0, "remain_qty": 960.0, "target_cost": 52800.0, "act_cost": 0.0, "raw": {"task_id": "502", "rsrc_id": "2", "target_qty": "960.0", "remain_qty": "960.0", "act_qty": "0.0", "target_cost": "52800.00", "act_cost": "0.00"}}]}, {"task_id": "503", "task_code": "SUP1030", "task_name": "Roof Slab & Parapet Casting", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-08", "bl_end": "2024-07-26", "curr_start": "2024-07-22", "curr_end": "2024-08-09", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "503", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "503", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "703", "task_code": "FIN1030", "task_name": "Flooring, Ceiling & Painting Works", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-09-02", "bl_end": "2024-10-18", "curr_start": "2024-09-16", "curr_end": "2024-11-01", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "703", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "703", "rsrc_id": "4", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "801", "task_code": "CLO1010", "task_name": "MEP Testing, Adjusting & Commissioning", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 20.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-09-23", "bl_end": "2024-10-18", "curr_start": "2024-10-07", "curr_end": "2024-11-01", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 0.0, "target_durn_days": 20.0, "remain_durn_days": 20.0, "resources": [{"task_id": "801", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 0.0, "remain_qty": 640.0, "target_cost": 35200.0, "act_cost": 0.0, "raw": {"task_id": "801", "rsrc_id": "3", "target_qty": "640.0", "remain_qty": "640.0", "act_qty": "0.0", "target_cost": "35200.00", "act_cost": "0.00"}}]}, {"task_id": "802", "task_code": "CLO1020", "task_name": "Civil Defense Inspection & Authority Sign-off", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 9.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-10-21", "bl_end": "2024-10-31", "curr_start": "2024-11-04", "curr_end": "2024-11-15", "start_var_days": 14, "finish_var_days": 15, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 15840.0, "act_cost": 0.0, "target_durn_days": 9.0, "remain_durn_days": 9.0, "resources": [{"task_id": "802", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 288.0, "act_qty": 0.0, "remain_qty": 288.0, "target_cost": 15840.0, "act_cost": 0.0, "raw": {"task_id": "802", "rsrc_id": "1", "target_qty": "288.0", "remain_qty": "288.0", "act_qty": "0.0", "target_cost": "15840.00", "act_cost": "0.00"}}]}, {"task_id": "701", "task_code": "FIN1010", "task_name": "Exterior Glazing & Curtain Wall Panels", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 40.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-29", "bl_end": "2024-09-20", "curr_start": "2024-08-12", "curr_end": "2024-10-04", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -9.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 0.0, "target_durn_days": 40.0, "remain_durn_days": 40.0, "resources": [{"task_id": "701", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 0.0, "remain_qty": 1280.0, "target_cost": 70400.0, "act_cost": 0.0, "raw": {"task_id": "701", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "1280.0", "act_qty": "0.0", "target_cost": "70400.00", "act_cost": "0.00"}}]}, {"task_id": "603", "task_code": "MEP1030", "task_name": "HVAC Ductwork & Fire Protection Piping", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-01", "bl_end": "2024-08-16", "curr_start": "2024-07-15", "curr_end": "2024-08-30", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -7.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "603", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "603", "rsrc_id": "3", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "702", "task_code": "FIN1020", "task_name": "Internal CMU Partitions & Drywall Framing", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 40.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-08-05", "bl_end": "2024-09-27", "curr_start": "2024-08-19", "curr_end": "2024-10-11", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -6.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 0.0, "target_durn_days": 40.0, "remain_durn_days": 40.0, "resources": [{"task_id": "702", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 0.0, "remain_qty": 1280.0, "target_cost": 70400.0, "act_cost": 0.0, "raw": {"task_id": "702", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "1280.0", "act_qty": "0.0", "target_cost": "70400.00", "act_cost": "0.00"}}]}, {"task_id": "602", "task_code": "MEP1020", "task_name": "Electrical Risers & Plumbing Rough-in", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-06-03", "bl_end": "2024-07-19", "curr_start": "2024-06-17", "curr_end": "2024-08-02", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -5.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "602", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "602", "rsrc_id": "3", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}], "delayed_activities": [{"task_id": "802", "task_code": "CLO1020", "task_name": "Civil Defense Inspection & Authority Sign-off", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 9.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-10-21", "bl_end": "2024-10-31", "curr_start": "2024-11-04", "curr_end": "2024-11-15", "start_var_days": 14, "finish_var_days": 15, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 15840.0, "act_cost": 0.0, "target_durn_days": 9.0, "remain_durn_days": 9.0, "resources": [{"task_id": "802", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 288.0, "act_qty": 0.0, "remain_qty": 288.0, "target_cost": 15840.0, "act_cost": 0.0, "raw": {"task_id": "802", "rsrc_id": "1", "target_qty": "288.0", "remain_qty": "288.0", "act_qty": "0.0", "target_cost": "15840.00", "act_cost": "0.00"}}]}, {"task_id": "403", "task_code": "SUB1030", "task_name": "Cast Concrete Piles & Pile Caps", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 80.0, "pct_variance": -20.0, "bl_start": "2024-03-04", "bl_end": "2024-03-22", "curr_start": "2024-03-08", "curr_end": "2024-04-05", "start_var_days": 4, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 21120.0, "target_durn_days": 15.0, "remain_durn_days": 3.0, "resources": [{"task_id": "403", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 384.0, "remain_qty": 96.0, "target_cost": 26400.0, "act_cost": 21120.0, "raw": {"task_id": "403", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "96.0", "act_qty": "384.0", "target_cost": "26400.00", "act_cost": "21120.00"}}]}, {"task_id": "404", "task_code": "SUB1040", "task_name": "Raft Foundation Waterproofing & Casting", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 23.8, "actual_pct": 0.0, "pct_variance": -23.8, "bl_start": "2024-03-25", "bl_end": "2024-04-12", "curr_start": "2024-04-08", "curr_end": "2024-04-26", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "404", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "404", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "405", "task_code": "SUB1050", "task_name": "Basement Retaining Walls & SOG", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-04-15", "bl_end": "2024-05-03", "curr_start": "2024-04-29", "curr_end": "2024-05-17", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "405", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "405", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "501", "task_code": "SUP1010", "task_name": "Ground Floor Columns & Elevated Slab", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-06", "bl_end": "2024-05-24", "curr_start": "2024-05-20", "curr_end": "2024-06-07", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "501", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "501", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "502", "task_code": "SUP1020", "task_name": "Floors 1 to 5 Concrete Framing", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 30.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-27", "bl_end": "2024-07-05", "curr_start": "2024-06-10", "curr_end": "2024-07-19", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 52800.0, "act_cost": 0.0, "target_durn_days": 30.0, "remain_durn_days": 30.0, "resources": [{"task_id": "502", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 960.0, "act_qty": 0.0, "remain_qty": 960.0, "target_cost": 52800.0, "act_cost": 0.0, "raw": {"task_id": "502", "rsrc_id": "2", "target_qty": "960.0", "remain_qty": "960.0", "act_qty": "0.0", "target_cost": "52800.00", "act_cost": "0.00"}}]}, {"task_id": "503", "task_code": "SUP1030", "task_name": "Roof Slab & Parapet Casting", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-08", "bl_end": "2024-07-26", "curr_start": "2024-07-22", "curr_end": "2024-08-09", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "503", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "503", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "602", "task_code": "MEP1020", "task_name": "Electrical Risers & Plumbing Rough-in", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-06-03", "bl_end": "2024-07-19", "curr_start": "2024-06-17", "curr_end": "2024-08-02", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -5.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "602", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "602", "rsrc_id": "3", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "603", "task_code": "MEP1030", "task_name": "HVAC Ductwork & Fire Protection Piping", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-01", "bl_end": "2024-08-16", "curr_start": "2024-07-15", "curr_end": "2024-08-30", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -7.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "603", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "603", "rsrc_id": "3", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "701", "task_code": "FIN1010", "task_name": "Exterior Glazing & Curtain Wall Panels", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 40.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-29", "bl_end": "2024-09-20", "curr_start": "2024-08-12", "curr_end": "2024-10-04", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -9.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 0.0, "target_durn_days": 40.0, "remain_durn_days": 40.0, "resources": [{"task_id": "701", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 0.0, "remain_qty": 1280.0, "target_cost": 70400.0, "act_cost": 0.0, "raw": {"task_id": "701", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "1280.0", "act_qty": "0.0", "target_cost": "70400.00", "act_cost": "0.00"}}]}, {"task_id": "702", "task_code": "FIN1020", "task_name": "Internal CMU Partitions & Drywall Framing", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 40.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-08-05", "bl_end": "2024-09-27", "curr_start": "2024-08-19", "curr_end": "2024-10-11", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -6.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 0.0, "target_durn_days": 40.0, "remain_durn_days": 40.0, "resources": [{"task_id": "702", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 0.0, "remain_qty": 1280.0, "target_cost": 70400.0, "act_cost": 0.0, "raw": {"task_id": "702", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "1280.0", "act_qty": "0.0", "target_cost": "70400.00", "act_cost": "0.00"}}]}, {"task_id": "703", "task_code": "FIN1030", "task_name": "Flooring, Ceiling & Painting Works", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-09-02", "bl_end": "2024-10-18", "curr_start": "2024-09-16", "curr_end": "2024-11-01", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "703", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "703", "rsrc_id": "4", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "801", "task_code": "CLO1010", "task_name": "MEP Testing, Adjusting & Commissioning", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 20.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-09-23", "bl_end": "2024-10-18", "curr_start": "2024-10-07", "curr_end": "2024-11-01", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 0.0, "target_durn_days": 20.0, "remain_durn_days": 20.0, "resources": [{"task_id": "801", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 0.0, "remain_qty": 640.0, "target_cost": 35200.0, "act_cost": 0.0, "raw": {"task_id": "801", "rsrc_id": "3", "target_qty": "640.0", "remain_qty": "640.0", "act_qty": "0.0", "target_cost": "35200.00", "act_cost": "0.00"}}]}, {"task_id": "203", "task_code": "ENG1030", "task_name": "Municipality Building Permit Approval", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 20.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-22", "bl_end": "2024-02-16", "curr_start": "2024-01-25", "curr_end": "2024-02-23", "start_var_days": 3, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 35200.0, "target_durn_days": 20.0, "remain_durn_days": 0.0, "resources": [{"task_id": "203", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 640.0, "remain_qty": 0.0, "target_cost": 35200.0, "act_cost": 35200.0, "raw": {"task_id": "203", "rsrc_id": "1", "target_qty": "640.0", "remain_qty": "0.0", "act_qty": "640.0", "target_cost": "35200.00", "act_cost": "35200.00"}}]}, {"task_id": "204", "task_code": "ENG1040", "task_name": "MEP Coordinated BIM Models", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 25.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-02-05", "bl_end": "2024-03-08", "curr_start": "2024-02-05", "curr_end": "2024-03-15", "start_var_days": 0, "finish_var_days": 7, "total_float_days": 12.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 44000.0, "act_cost": 44000.0, "target_durn_days": 25.0, "remain_durn_days": 0.0, "resources": [{"task_id": "204", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 800.0, "act_qty": 800.0, "remain_qty": 0.0, "target_cost": 44000.0, "act_cost": 44000.0, "raw": {"task_id": "204", "rsrc_id": "1", "target_qty": "800.0", "remain_qty": "0.0", "act_qty": "800.0", "target_cost": "44000.00", "act_cost": "44000.00"}}]}, {"task_id": "301", "task_code": "PRC1010", "task_name": "Rebar & Structural Steel Supply Contract", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Completed", "weight": 20.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-15", "bl_end": "2024-02-09", "curr_start": "2024-01-18", "curr_end": "2024-02-16", "start_var_days": 3, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 35200.0, "target_durn_days": 20.0, "remain_durn_days": 0.0, "resources": [{"task_id": "301", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 640.0, "remain_qty": 0.0, "target_cost": 35200.0, "act_cost": 35200.0, "raw": {"task_id": "301", "rsrc_id": "2", "target_qty": "640.0", "remain_qty": "0.0", "act_qty": "640.0", "target_cost": "35200.00", "act_cost": "35200.00"}}]}, {"task_id": "302", "task_code": "PRC1020", "task_name": "Curtain Wall & Facade Long-Lead Procurement", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 86.9, "actual_pct": 65.0, "pct_variance": -21.9, "bl_start": "2024-02-12", "bl_end": "2024-04-05", "curr_start": "2024-02-12", "curr_end": "2024-04-12", "start_var_days": 0, "finish_var_days": 7, "total_float_days": 4.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 45760.0, "target_durn_days": 40.0, "remain_durn_days": 14.0, "resources": [{"task_id": "302", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 832.0, "remain_qty": 448.0, "target_cost": 70400.0, "act_cost": 45760.0, "raw": {"task_id": "302", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "448.0", "act_qty": "832.0", "target_cost": "70400.00", "act_cost": "45760.00"}}]}, {"task_id": "402", "task_code": "SUB1020", "task_name": "Mass Excavation & Dewatering", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Completed", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-02-12", "bl_end": "2024-03-01", "curr_start": "2024-02-19", "curr_end": "2024-03-08", "start_var_days": 7, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 26400.0, "target_durn_days": 15.0, "remain_durn_days": 0.0, "resources": [{"task_id": "402", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 480.0, "remain_qty": 0.0, "target_cost": 26400.0, "act_cost": 26400.0, "raw": {"task_id": "402", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "0.0", "act_qty": "480.0", "target_cost": "26400.00", "act_cost": "26400.00"}}]}, {"task_id": "601", "task_code": "MEP1010", "task_name": "Basement Underground Drainage & Conduits", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 61.9, "actual_pct": 30.0, "pct_variance": -31.9, "bl_start": "2024-03-18", "bl_end": "2024-04-05", "curr_start": "2024-03-20", "curr_end": "2024-04-12", "start_var_days": 2, "finish_var_days": 7, "total_float_days": 6.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 7920.0, "target_durn_days": 15.0, "remain_durn_days": 10.5, "resources": [{"task_id": "601", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 144.0, "remain_qty": 336.0, "target_cost": 26400.0, "act_cost": 7920.0, "raw": {"task_id": "601", "rsrc_id": "3", "target_qty": "480.0", "remain_qty": "336.0", "act_qty": "144.0", "target_cost": "26400.00", "act_cost": "7920.00"}}]}, {"task_id": "401", "task_code": "SUB1010", "task_name": "Site Clearing & Shoring Installation", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Completed", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-22", "bl_end": "2024-02-09", "curr_start": "2024-01-24", "curr_end": "2024-02-14", "start_var_days": 2, "finish_var_days": 5, "total_float_days": 2.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 26400.0, "target_durn_days": 15.0, "remain_durn_days": 0.0, "resources": [{"task_id": "401", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 480.0, "remain_qty": 0.0, "target_cost": 26400.0, "act_cost": 26400.0, "raw": {"task_id": "401", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "0.0", "act_qty": "480.0", "target_cost": "26400.00", "act_cost": "26400.00"}}]}, {"task_id": "303", "task_code": "PRC1030", "task_name": "HVAC Chillers & Main Switchgear Order", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 73.8, "actual_pct": 45.0, "pct_variance": -28.8, "bl_start": "2024-02-19", "bl_end": "2024-04-12", "curr_start": "2024-02-19", "curr_end": "2024-04-16", "start_var_days": 0, "finish_var_days": 4, "total_float_days": 10.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 31680.0, "target_durn_days": 40.0, "remain_durn_days": 22.0, "resources": [{"task_id": "303", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 576.0, "remain_qty": 704.0, "target_cost": 70400.0, "act_cost": 31680.0, "raw": {"task_id": "303", "rsrc_id": "3", "target_qty": "1280.0", "remain_qty": "704.0", "act_qty": "576.0", "target_cost": "70400.00", "act_cost": "31680.00"}}]}, {"task_id": "202", "task_code": "ENG1020", "task_name": "Structural Foundation Shop Drawings", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-15", "bl_end": "2024-02-02", "curr_start": "2024-01-15", "curr_end": "2024-02-05", "start_var_days": 0, "finish_var_days": 3, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 26400.0, "target_durn_days": 15.0, "remain_durn_days": 0.0, "resources": [{"task_id": "202", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 480.0, "remain_qty": 0.0, "target_cost": 26400.0, "act_cost": 26400.0, "raw": {"task_id": "202", "rsrc_id": "1", "target_qty": "480.0", "remain_qty": "0.0", "act_qty": "480.0", "target_cost": "26400.00", "act_cost": "26400.00"}}]}], "lookahead": {"lookahead_30": [{"task_id": "403", "task_code": "SUB1030", "task_name": "Cast Concrete Piles & Pile Caps", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 80.0, "pct_variance": -20.0, "bl_start": "2024-03-04", "bl_end": "2024-03-22", "curr_start": "2024-03-08", "curr_end": "2024-04-05", "start_var_days": 4, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 21120.0, "target_durn_days": 15.0, "remain_durn_days": 3.0, "resources": [{"task_id": "403", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 384.0, "remain_qty": 96.0, "target_cost": 26400.0, "act_cost": 21120.0, "raw": {"task_id": "403", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "96.0", "act_qty": "384.0", "target_cost": "26400.00", "act_cost": "21120.00"}}], "window_status": "In Progress (80.0%)", "lookahead_days": 30}, {"task_id": "404", "task_code": "SUB1040", "task_name": "Raft Foundation Waterproofing & Casting", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 23.8, "actual_pct": 0.0, "pct_variance": -23.8, "bl_start": "2024-03-25", "bl_end": "2024-04-12", "curr_start": "2024-04-08", "curr_end": "2024-04-26", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "404", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "404", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}], "window_status": "Starts in 9 days", "lookahead_days": 30}, {"task_id": "302", "task_code": "PRC1020", "task_name": "Curtain Wall & Facade Long-Lead Procurement", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 86.9, "actual_pct": 65.0, "pct_variance": -21.9, "bl_start": "2024-02-12", "bl_end": "2024-04-05", "curr_start": "2024-02-12", "curr_end": "2024-04-12", "start_var_days": 0, "finish_var_days": 7, "total_float_days": 4.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 45760.0, "target_durn_days": 40.0, "remain_durn_days": 14.0, "resources": [{"task_id": "302", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 832.0, "remain_qty": 448.0, "target_cost": 70400.0, "act_cost": 45760.0, "raw": {"task_id": "302", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "448.0", "act_qty": "832.0", "target_cost": "70400.00", "act_cost": "45760.00"}}], "window_status": "In Progress (65.0%)", "lookahead_days": 30}, {"task_id": "303", "task_code": "PRC1030", "task_name": "HVAC Chillers & Main Switchgear Order", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 73.8, "actual_pct": 45.0, "pct_variance": -28.8, "bl_start": "2024-02-19", "bl_end": "2024-04-12", "curr_start": "2024-02-19", "curr_end": "2024-04-16", "start_var_days": 0, "finish_var_days": 4, "total_float_days": 10.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 31680.0, "target_durn_days": 40.0, "remain_durn_days": 22.0, "resources": [{"task_id": "303", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 576.0, "remain_qty": 704.0, "target_cost": 70400.0, "act_cost": 31680.0, "raw": {"task_id": "303", "rsrc_id": "3", "target_qty": "1280.0", "remain_qty": "704.0", "act_qty": "576.0", "target_cost": "70400.00", "act_cost": "31680.00"}}], "window_status": "In Progress (45.0%)", "lookahead_days": 30}, {"task_id": "601", "task_code": "MEP1010", "task_name": "Basement Underground Drainage & Conduits", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 61.9, "actual_pct": 30.0, "pct_variance": -31.9, "bl_start": "2024-03-18", "bl_end": "2024-04-05", "curr_start": "2024-03-20", "curr_end": "2024-04-12", "start_var_days": 2, "finish_var_days": 7, "total_float_days": 6.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 7920.0, "target_durn_days": 15.0, "remain_durn_days": 10.5, "resources": [{"task_id": "601", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 144.0, "remain_qty": 336.0, "target_cost": 26400.0, "act_cost": 7920.0, "raw": {"task_id": "601", "rsrc_id": "3", "target_qty": "480.0", "remain_qty": "336.0", "act_qty": "144.0", "target_cost": "26400.00", "act_cost": "7920.00"}}], "window_status": "In Progress (30.0%)", "lookahead_days": 30}], "lookahead_60": [{"task_id": "403", "task_code": "SUB1030", "task_name": "Cast Concrete Piles & Pile Caps", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 80.0, "pct_variance": -20.0, "bl_start": "2024-03-04", "bl_end": "2024-03-22", "curr_start": "2024-03-08", "curr_end": "2024-04-05", "start_var_days": 4, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 21120.0, "target_durn_days": 15.0, "remain_durn_days": 3.0, "resources": [{"task_id": "403", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 384.0, "remain_qty": 96.0, "target_cost": 26400.0, "act_cost": 21120.0, "raw": {"task_id": "403", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "96.0", "act_qty": "384.0", "target_cost": "26400.00", "act_cost": "21120.00"}}], "window_status": "In Progress (80.0%)", "lookahead_days": 60}, {"task_id": "404", "task_code": "SUB1040", "task_name": "Raft Foundation Waterproofing & Casting", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 23.8, "actual_pct": 0.0, "pct_variance": -23.8, "bl_start": "2024-03-25", "bl_end": "2024-04-12", "curr_start": "2024-04-08", "curr_end": "2024-04-26", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "404", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "404", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}], "window_status": "Starts in 9 days", "lookahead_days": 60}, {"task_id": "405", "task_code": "SUB1050", "task_name": "Basement Retaining Walls & SOG", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-04-15", "bl_end": "2024-05-03", "curr_start": "2024-04-29", "curr_end": "2024-05-17", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "405", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "405", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}], "window_status": "Starts in 30 days", "lookahead_days": 60}, {"task_id": "501", "task_code": "SUP1010", "task_name": "Ground Floor Columns & Elevated Slab", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-06", "bl_end": "2024-05-24", "curr_start": "2024-05-20", "curr_end": "2024-06-07", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "501", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "501", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}], "window_status": "Starts in 51 days", "lookahead_days": 60}, {"task_id": "302", "task_code": "PRC1020", "task_name": "Curtain Wall & Facade Long-Lead Procurement", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 86.9, "actual_pct": 65.0, "pct_variance": -21.9, "bl_start": "2024-02-12", "bl_end": "2024-04-05", "curr_start": "2024-02-12", "curr_end": "2024-04-12", "start_var_days": 0, "finish_var_days": 7, "total_float_days": 4.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 45760.0, "target_durn_days": 40.0, "remain_durn_days": 14.0, "resources": [{"task_id": "302", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 832.0, "remain_qty": 448.0, "target_cost": 70400.0, "act_cost": 45760.0, "raw": {"task_id": "302", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "448.0", "act_qty": "832.0", "target_cost": "70400.00", "act_cost": "45760.00"}}], "window_status": "In Progress (65.0%)", "lookahead_days": 60}, {"task_id": "303", "task_code": "PRC1030", "task_name": "HVAC Chillers & Main Switchgear Order", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 73.8, "actual_pct": 45.0, "pct_variance": -28.8, "bl_start": "2024-02-19", "bl_end": "2024-04-12", "curr_start": "2024-02-19", "curr_end": "2024-04-16", "start_var_days": 0, "finish_var_days": 4, "total_float_days": 10.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 31680.0, "target_durn_days": 40.0, "remain_durn_days": 22.0, "resources": [{"task_id": "303", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 576.0, "remain_qty": 704.0, "target_cost": 70400.0, "act_cost": 31680.0, "raw": {"task_id": "303", "rsrc_id": "3", "target_qty": "1280.0", "remain_qty": "704.0", "act_qty": "576.0", "target_cost": "70400.00", "act_cost": "31680.00"}}], "window_status": "In Progress (45.0%)", "lookahead_days": 60}, {"task_id": "601", "task_code": "MEP1010", "task_name": "Basement Underground Drainage & Conduits", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 61.9, "actual_pct": 30.0, "pct_variance": -31.9, "bl_start": "2024-03-18", "bl_end": "2024-04-05", "curr_start": "2024-03-20", "curr_end": "2024-04-12", "start_var_days": 2, "finish_var_days": 7, "total_float_days": 6.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 7920.0, "target_durn_days": 15.0, "remain_durn_days": 10.5, "resources": [{"task_id": "601", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 144.0, "remain_qty": 336.0, "target_cost": 26400.0, "act_cost": 7920.0, "raw": {"task_id": "601", "rsrc_id": "3", "target_qty": "480.0", "remain_qty": "336.0", "act_qty": "144.0", "target_cost": "26400.00", "act_cost": "7920.00"}}], "window_status": "In Progress (30.0%)", "lookahead_days": 60}]}, "manpower": {"months": ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024", "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024"], "planned_hours": [2164.0, 3293.0, 3390.0, 1486.0, 820.0, 1775.0, 2305.0, 2207.0, 2497.0, 1421.0, 0.0, 0.0], "actual_hours": [1694.0, 2965.0, 1793.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "headcount_planned": [10.8, 16.5, 17.0, 7.4, 4.1, 8.9, 11.5, 11.0, 12.5, 7.1, 0.0, 0.0], "headcount_actual": [8.5, 14.8, 9.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "total_planned_hours": 21360.0, "total_actual_hours": 6452.0, "peak_labor": 17.0, "craft_distribution": [{"craft": "Civil & Structural", "planned_hours": 6600.0, "actual_hours": 3080.0, "percent_complete": 46.7}, {"craft": "MEP Trades", "planned_hours": 6800.0, "actual_hours": 1900.0, "percent_complete": 27.9}, {"craft": "Finishes & Facade", "planned_hours": 6400.0, "actual_hours": 1040.0, "percent_complete": 16.2}, {"craft": "Supervision & PM", "planned_hours": 1560.0, "actual_hours": 1200.0, "percent_complete": 76.9}]}, "cashflow": {"months": ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024", "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024"], "monthly_planned": [95216.0, 144879.75, 149179.72, 65391.2, 36102.56, 78111.03, 101417.68, 97128.47, 109872.37, 62541.22, 0.0, 0.0], "monthly_actual": [74518.22, 130461.92, 89168.71, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "cum_planned": [95216.0, 240095.75, 389275.47, 454666.67, 490769.23, 568880.26, 670297.94, 767426.41, 877298.78, 939840.0, 939840.0, 939840.0], "cum_actual": [74518.22, 204980.14, 294148.85, null, null, null, null, null, null, null, null, null], "total_budget": 939840.0, "total_spent_to_date": 294148.85}, "invoice": [{"ipc_number": "IPC-01", "period": "Jan 2024", "gross_amount": 74518.22, "retention": 7451.82, "advance_recovery": 3725.91, "net_payable": 63340.49, "cum_certified": 63340.49, "status": "Paid"}, {"ipc_number": "IPC-02", "period": "Feb 2024", "gross_amount": 130461.92, "retention": 13046.19, "advance_recovery": 6523.1, "net_payable": 110892.63, "cum_certified": 174233.12, "status": "Paid"}, {"ipc_number": "IPC-03", "period": "Mar 2024", "gross_amount": 89168.71, "retention": 8916.87, "advance_recovery": 4458.44, "net_payable": 75793.4, "cum_certified": 250026.52, "status": "Certified - Pending Payment"}], "all_activities": [{"task_id": "101", "task_code": "M1000", "task_name": "Notice to Proceed (NTP)", "wbs_id": "1", "wbs_name": "Marina Commercial Tower", "wbs_code": "MCT", "wbs_level": 1, "wbs_path": "MCT", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": true, "status": "Completed", "weight": 0.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-08", "bl_end": "2024-01-08", "curr_start": "2024-01-08", "curr_end": "2024-01-08", "start_var_days": 0, "finish_var_days": 0, "total_float_days": 0.0, "is_critical": false, "delay_status": "On Track", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "101", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "101", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}, {"task_id": "201", "task_code": "ENG1010", "task_name": "Mobilization & Site Survey", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 10.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-08", "bl_end": "2024-01-19", "curr_start": "2024-01-08", "curr_end": "2024-01-19", "start_var_days": 0, "finish_var_days": 0, "total_float_days": 5.0, "is_critical": false, "delay_status": "On Track", "target_cost": 17600.0, "act_cost": 17600.0, "target_durn_days": 10.0, "remain_durn_days": 0.0, "resources": [{"task_id": "201", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 320.0, "act_qty": 320.0, "remain_qty": 0.0, "target_cost": 17600.0, "act_cost": 17600.0, "raw": {"task_id": "201", "rsrc_id": "1", "target_qty": "320.0", "remain_qty": "0.0", "act_qty": "320.0", "target_cost": "17600.00", "act_cost": "17600.00"}}]}, {"task_id": "202", "task_code": "ENG1020", "task_name": "Structural Foundation Shop Drawings", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-15", "bl_end": "2024-02-02", "curr_start": "2024-01-15", "curr_end": "2024-02-05", "start_var_days": 0, "finish_var_days": 3, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 26400.0, "target_durn_days": 15.0, "remain_durn_days": 0.0, "resources": [{"task_id": "202", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 480.0, "remain_qty": 0.0, "target_cost": 26400.0, "act_cost": 26400.0, "raw": {"task_id": "202", "rsrc_id": "1", "target_qty": "480.0", "remain_qty": "0.0", "act_qty": "480.0", "target_cost": "26400.00", "act_cost": "26400.00"}}]}, {"task_id": "301", "task_code": "PRC1010", "task_name": "Rebar & Structural Steel Supply Contract", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Completed", "weight": 20.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-15", "bl_end": "2024-02-09", "curr_start": "2024-01-18", "curr_end": "2024-02-16", "start_var_days": 3, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 35200.0, "target_durn_days": 20.0, "remain_durn_days": 0.0, "resources": [{"task_id": "301", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 640.0, "remain_qty": 0.0, "target_cost": 35200.0, "act_cost": 35200.0, "raw": {"task_id": "301", "rsrc_id": "2", "target_qty": "640.0", "remain_qty": "0.0", "act_qty": "640.0", "target_cost": "35200.00", "act_cost": "35200.00"}}]}, {"task_id": "401", "task_code": "SUB1010", "task_name": "Site Clearing & Shoring Installation", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Completed", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-22", "bl_end": "2024-02-09", "curr_start": "2024-01-24", "curr_end": "2024-02-14", "start_var_days": 2, "finish_var_days": 5, "total_float_days": 2.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 26400.0, "target_durn_days": 15.0, "remain_durn_days": 0.0, "resources": [{"task_id": "401", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 480.0, "remain_qty": 0.0, "target_cost": 26400.0, "act_cost": 26400.0, "raw": {"task_id": "401", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "0.0", "act_qty": "480.0", "target_cost": "26400.00", "act_cost": "26400.00"}}]}, {"task_id": "203", "task_code": "ENG1030", "task_name": "Municipality Building Permit Approval", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 20.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-01-22", "bl_end": "2024-02-16", "curr_start": "2024-01-25", "curr_end": "2024-02-23", "start_var_days": 3, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 35200.0, "target_durn_days": 20.0, "remain_durn_days": 0.0, "resources": [{"task_id": "203", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 640.0, "remain_qty": 0.0, "target_cost": 35200.0, "act_cost": 35200.0, "raw": {"task_id": "203", "rsrc_id": "1", "target_qty": "640.0", "remain_qty": "0.0", "act_qty": "640.0", "target_cost": "35200.00", "act_cost": "35200.00"}}]}, {"task_id": "204", "task_code": "ENG1040", "task_name": "MEP Coordinated BIM Models", "wbs_id": "2", "wbs_name": "Engineering & Approvals", "wbs_code": "MCT.ENG", "wbs_level": 2, "wbs_path": "MCT > MCT.ENG", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "301", "code_val": "PHASE-1", "code_name": "Design & Pre-construction"}}, "is_milestone": false, "status": "Completed", "weight": 25.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-02-05", "bl_end": "2024-03-08", "curr_start": "2024-02-05", "curr_end": "2024-03-15", "start_var_days": 0, "finish_var_days": 7, "total_float_days": 12.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 44000.0, "act_cost": 44000.0, "target_durn_days": 25.0, "remain_durn_days": 0.0, "resources": [{"task_id": "204", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 800.0, "act_qty": 800.0, "remain_qty": 0.0, "target_cost": 44000.0, "act_cost": 44000.0, "raw": {"task_id": "204", "rsrc_id": "1", "target_qty": "800.0", "remain_qty": "0.0", "act_qty": "800.0", "target_cost": "44000.00", "act_cost": "44000.00"}}]}, {"task_id": "302", "task_code": "PRC1020", "task_name": "Curtain Wall & Facade Long-Lead Procurement", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 86.9, "actual_pct": 65.0, "pct_variance": -21.9, "bl_start": "2024-02-12", "bl_end": "2024-04-05", "curr_start": "2024-02-12", "curr_end": "2024-04-12", "start_var_days": 0, "finish_var_days": 7, "total_float_days": 4.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 45760.0, "target_durn_days": 40.0, "remain_durn_days": 14.0, "resources": [{"task_id": "302", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 832.0, "remain_qty": 448.0, "target_cost": 70400.0, "act_cost": 45760.0, "raw": {"task_id": "302", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "448.0", "act_qty": "832.0", "target_cost": "70400.00", "act_cost": "45760.00"}}]}, {"task_id": "303", "task_code": "PRC1030", "task_name": "HVAC Chillers & Main Switchgear Order", "wbs_id": "3", "wbs_name": "Procurement & Subcontracts", "wbs_code": "MCT.PROC", "wbs_level": 2, "wbs_path": "MCT > MCT.PROC", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 40.0, "planned_pct": 73.8, "actual_pct": 45.0, "pct_variance": -28.8, "bl_start": "2024-02-19", "bl_end": "2024-04-12", "curr_start": "2024-02-19", "curr_end": "2024-04-16", "start_var_days": 0, "finish_var_days": 4, "total_float_days": 10.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 31680.0, "target_durn_days": 40.0, "remain_durn_days": 22.0, "resources": [{"task_id": "303", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 576.0, "remain_qty": 704.0, "target_cost": 70400.0, "act_cost": 31680.0, "raw": {"task_id": "303", "rsrc_id": "3", "target_qty": "1280.0", "remain_qty": "704.0", "act_qty": "576.0", "target_cost": "70400.00", "act_cost": "31680.00"}}]}, {"task_id": "402", "task_code": "SUB1020", "task_name": "Mass Excavation & Dewatering", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Completed", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-02-12", "bl_end": "2024-03-01", "curr_start": "2024-02-19", "curr_end": "2024-03-08", "start_var_days": 7, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 26400.0, "target_durn_days": 15.0, "remain_durn_days": 0.0, "resources": [{"task_id": "402", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 480.0, "remain_qty": 0.0, "target_cost": 26400.0, "act_cost": 26400.0, "raw": {"task_id": "402", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "0.0", "act_qty": "480.0", "target_cost": "26400.00", "act_cost": "26400.00"}}]}, {"task_id": "102", "task_code": "M1010", "task_name": "Foundation Approval Milestone", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": true, "status": "Completed", "weight": 0.0, "planned_pct": 100.0, "actual_pct": 100.0, "pct_variance": 0.0, "bl_start": "2024-02-16", "bl_end": "2024-02-16", "curr_start": "2024-02-23", "curr_end": "2024-02-23", "start_var_days": 7, "finish_var_days": 7, "total_float_days": 0.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "102", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "102", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}, {"task_id": "403", "task_code": "SUB1030", "task_name": "Cast Concrete Piles & Pile Caps", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 100.0, "actual_pct": 80.0, "pct_variance": -20.0, "bl_start": "2024-03-04", "bl_end": "2024-03-22", "curr_start": "2024-03-08", "curr_end": "2024-04-05", "start_var_days": 4, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 21120.0, "target_durn_days": 15.0, "remain_durn_days": 3.0, "resources": [{"task_id": "403", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 384.0, "remain_qty": 96.0, "target_cost": 26400.0, "act_cost": 21120.0, "raw": {"task_id": "403", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "96.0", "act_qty": "384.0", "target_cost": "26400.00", "act_cost": "21120.00"}}]}, {"task_id": "601", "task_code": "MEP1010", "task_name": "Basement Underground Drainage & Conduits", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "In Progress", "weight": 15.0, "planned_pct": 61.9, "actual_pct": 30.0, "pct_variance": -31.9, "bl_start": "2024-03-18", "bl_end": "2024-04-05", "curr_start": "2024-03-20", "curr_end": "2024-04-12", "start_var_days": 2, "finish_var_days": 7, "total_float_days": 6.0, "is_critical": false, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 7920.0, "target_durn_days": 15.0, "remain_durn_days": 10.5, "resources": [{"task_id": "601", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 144.0, "remain_qty": 336.0, "target_cost": 26400.0, "act_cost": 7920.0, "raw": {"task_id": "601", "rsrc_id": "3", "target_qty": "480.0", "remain_qty": "336.0", "act_qty": "144.0", "target_cost": "26400.00", "act_cost": "7920.00"}}]}, {"task_id": "404", "task_code": "SUB1040", "task_name": "Raft Foundation Waterproofing & Casting", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 23.8, "actual_pct": 0.0, "pct_variance": -23.8, "bl_start": "2024-03-25", "bl_end": "2024-04-12", "curr_start": "2024-04-08", "curr_end": "2024-04-26", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "404", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "404", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "405", "task_code": "SUB1050", "task_name": "Basement Retaining Walls & SOG", "wbs_id": "4", "wbs_name": "Substructure & Piling", "wbs_code": "MCT.SUB", "wbs_level": 2, "wbs_path": "MCT > MCT.SUB", "area_code": "ZONE-SUB", "area_name": "Substructure & Foundation", "activity_codes": {"Project Area": {"code_id": "101", "code_val": "ZONE-SUB", "code_name": "Substructure & Foundation"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-04-15", "bl_end": "2024-05-03", "curr_start": "2024-04-29", "curr_end": "2024-05-17", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "405", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "405", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "501", "task_code": "SUP1010", "task_name": "Ground Floor Columns & Elevated Slab", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-06", "bl_end": "2024-05-24", "curr_start": "2024-05-20", "curr_end": "2024-06-07", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "501", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "501", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "502", "task_code": "SUP1020", "task_name": "Floors 1 to 5 Concrete Framing", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 30.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-05-27", "bl_end": "2024-07-05", "curr_start": "2024-06-10", "curr_end": "2024-07-19", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 52800.0, "act_cost": 0.0, "target_durn_days": 30.0, "remain_durn_days": 30.0, "resources": [{"task_id": "502", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 960.0, "act_qty": 0.0, "remain_qty": 960.0, "target_cost": 52800.0, "act_cost": 0.0, "raw": {"task_id": "502", "rsrc_id": "2", "target_qty": "960.0", "remain_qty": "960.0", "act_qty": "0.0", "target_cost": "52800.00", "act_cost": "0.00"}}]}, {"task_id": "602", "task_code": "MEP1020", "task_name": "Electrical Risers & Plumbing Rough-in", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-06-03", "bl_end": "2024-07-19", "curr_start": "2024-06-17", "curr_end": "2024-08-02", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -5.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "602", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "602", "rsrc_id": "3", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "603", "task_code": "MEP1030", "task_name": "HVAC Ductwork & Fire Protection Piping", "wbs_id": "6", "wbs_name": "MEP First Fix & Rough-in", "wbs_code": "MCT.MEP", "wbs_level": 2, "wbs_path": "MCT > MCT.MEP", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-01", "bl_end": "2024-08-16", "curr_start": "2024-07-15", "curr_end": "2024-08-30", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -7.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "603", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "603", "rsrc_id": "3", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "503", "task_code": "SUP1030", "task_name": "Roof Slab & Parapet Casting", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": false, "status": "Not Started", "weight": 15.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-08", "bl_end": "2024-07-26", "curr_start": "2024-07-22", "curr_end": "2024-08-09", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 26400.0, "act_cost": 0.0, "target_durn_days": 15.0, "remain_durn_days": 15.0, "resources": [{"task_id": "503", "rsrc_id": "2", "rsrc_name": "Civil Construction Labor Crew", "rsrc_type": "RT_Labor", "target_qty": 480.0, "act_qty": 0.0, "remain_qty": 480.0, "target_cost": 26400.0, "act_cost": 0.0, "raw": {"task_id": "503", "rsrc_id": "2", "target_qty": "480.0", "remain_qty": "480.0", "act_qty": "0.0", "target_cost": "26400.00", "act_cost": "0.00"}}]}, {"task_id": "103", "task_code": "M1020", "task_name": "Superstructure Topping Out", "wbs_id": "5", "wbs_name": "Superstructure & Concrete", "wbs_code": "MCT.SUP", "wbs_level": 2, "wbs_path": "MCT > MCT.SUP", "area_code": "ZONE-TOW", "area_name": "Superstructure Tower", "activity_codes": {"Project Area": {"code_id": "102", "code_val": "ZONE-TOW", "code_name": "Superstructure Tower"}, "Discipline": {"code_id": "201", "code_val": "CIVIL", "code_name": "Civil & Structural"}, "Phase": {"code_id": "302", "code_val": "PHASE-2", "code_name": "Foundations & Shell"}}, "is_milestone": true, "status": "Not Started", "weight": 0.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-26", "bl_end": "2024-07-26", "curr_start": "2024-08-09", "curr_end": "2024-08-09", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "103", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "103", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}, {"task_id": "701", "task_code": "FIN1010", "task_name": "Exterior Glazing & Curtain Wall Panels", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 40.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-07-29", "bl_end": "2024-09-20", "curr_start": "2024-08-12", "curr_end": "2024-10-04", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -9.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 0.0, "target_durn_days": 40.0, "remain_durn_days": 40.0, "resources": [{"task_id": "701", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 0.0, "remain_qty": 1280.0, "target_cost": 70400.0, "act_cost": 0.0, "raw": {"task_id": "701", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "1280.0", "act_qty": "0.0", "target_cost": "70400.00", "act_cost": "0.00"}}]}, {"task_id": "702", "task_code": "FIN1020", "task_name": "Internal CMU Partitions & Drywall Framing", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 40.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-08-05", "bl_end": "2024-09-27", "curr_start": "2024-08-19", "curr_end": "2024-10-11", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -6.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 70400.0, "act_cost": 0.0, "target_durn_days": 40.0, "remain_durn_days": 40.0, "resources": [{"task_id": "702", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1280.0, "act_qty": 0.0, "remain_qty": 1280.0, "target_cost": 70400.0, "act_cost": 0.0, "raw": {"task_id": "702", "rsrc_id": "4", "target_qty": "1280.0", "remain_qty": "1280.0", "act_qty": "0.0", "target_cost": "70400.00", "act_cost": "0.00"}}]}, {"task_id": "703", "task_code": "FIN1030", "task_name": "Flooring, Ceiling & Painting Works", "wbs_id": "7", "wbs_name": "Architectural Finishes", "wbs_code": "MCT.FIN", "wbs_level": 2, "wbs_path": "MCT > MCT.FIN", "area_code": "ZONE-FIN", "area_name": "Interior Finishes & Facade", "activity_codes": {"Project Area": {"code_id": "104", "code_val": "ZONE-FIN", "code_name": "Interior Finishes & Facade"}, "Discipline": {"code_id": "203", "code_val": "ARCH", "code_name": "Architectural"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 35.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-09-02", "bl_end": "2024-10-18", "curr_start": "2024-09-16", "curr_end": "2024-11-01", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 61600.0, "act_cost": 0.0, "target_durn_days": 35.0, "remain_durn_days": 35.0, "resources": [{"task_id": "703", "rsrc_id": "4", "rsrc_name": "Finishes Craftsmen & Glaziers", "rsrc_type": "RT_Labor", "target_qty": 1120.0, "act_qty": 0.0, "remain_qty": 1120.0, "target_cost": 61600.0, "act_cost": 0.0, "raw": {"task_id": "703", "rsrc_id": "4", "target_qty": "1120.0", "remain_qty": "1120.0", "act_qty": "0.0", "target_cost": "61600.00", "act_cost": "0.00"}}]}, {"task_id": "801", "task_code": "CLO1010", "task_name": "MEP Testing, Adjusting & Commissioning", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-MEP", "area_name": "MEP Plant & Core", "activity_codes": {"Project Area": {"code_id": "103", "code_val": "ZONE-MEP", "code_name": "MEP Plant & Core"}, "Discipline": {"code_id": "202", "code_val": "MEP", "code_name": "Mechanical & Electrical"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 20.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-09-23", "bl_end": "2024-10-18", "curr_start": "2024-10-07", "curr_end": "2024-11-01", "start_var_days": 14, "finish_var_days": 14, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 35200.0, "act_cost": 0.0, "target_durn_days": 20.0, "remain_durn_days": 20.0, "resources": [{"task_id": "801", "rsrc_id": "3", "rsrc_name": "MEP Electricians & Plumbers Crew", "rsrc_type": "RT_Labor", "target_qty": 640.0, "act_qty": 0.0, "remain_qty": 640.0, "target_cost": 35200.0, "act_cost": 0.0, "raw": {"task_id": "801", "rsrc_id": "3", "target_qty": "640.0", "remain_qty": "640.0", "act_qty": "0.0", "target_cost": "35200.00", "act_cost": "0.00"}}]}, {"task_id": "802", "task_code": "CLO1020", "task_name": "Civil Defense Inspection & Authority Sign-off", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": false, "status": "Not Started", "weight": 9.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-10-21", "bl_end": "2024-10-31", "curr_start": "2024-11-04", "curr_end": "2024-11-15", "start_var_days": 14, "finish_var_days": 15, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 15840.0, "act_cost": 0.0, "target_durn_days": 9.0, "remain_durn_days": 9.0, "resources": [{"task_id": "802", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 288.0, "act_qty": 0.0, "remain_qty": 288.0, "target_cost": 15840.0, "act_cost": 0.0, "raw": {"task_id": "802", "rsrc_id": "1", "target_qty": "288.0", "remain_qty": "288.0", "act_qty": "0.0", "target_cost": "15840.00", "act_cost": "0.00"}}]}, {"task_id": "104", "task_code": "M1030", "task_name": "Project Substantial Completion", "wbs_id": "8", "wbs_name": "Testing & Handover", "wbs_code": "MCT.CLO", "wbs_level": 2, "wbs_path": "MCT > MCT.CLO", "area_code": "ZONE-SITE", "area_name": "Site Works & Infrastructure", "activity_codes": {"Project Area": {"code_id": "105", "code_val": "ZONE-SITE", "code_name": "Site Works & Infrastructure"}, "Discipline": {"code_id": "204", "code_val": "MGMT", "code_name": "Project Management"}, "Phase": {"code_id": "303", "code_val": "PHASE-3", "code_name": "Fit-Out & Commissioning"}}, "is_milestone": true, "status": "Not Started", "weight": 0.0, "planned_pct": 0.0, "actual_pct": 0.0, "pct_variance": 0.0, "bl_start": "2024-10-31", "bl_end": "2024-10-31", "curr_start": "2024-11-15", "curr_end": "2024-11-15", "start_var_days": 15, "finish_var_days": 15, "total_float_days": -11.0, "is_critical": true, "delay_status": "Delayed", "target_cost": 0.0, "act_cost": 0.0, "target_durn_days": 0.0, "remain_durn_days": 0.0, "resources": [{"task_id": "104", "rsrc_id": "1", "rsrc_name": "Project Management Staff", "rsrc_type": "RT_Labor", "target_qty": 0.0, "act_qty": 0.0, "remain_qty": 0.0, "target_cost": 0.0, "act_cost": 0.0, "raw": {"task_id": "104", "rsrc_id": "1", "target_qty": "0.0", "remain_qty": "0.0", "act_qty": "0.0", "target_cost": "0.00", "act_cost": "0.00"}}]}], "scurve": {"labels": ["08-Jan-2024", "15-Jan-2024", "22-Jan-2024", "29-Jan-2024", "05-Feb-2024", "12-Feb-2024", "19-Feb-2024", "26-Feb-2024", "04-Mar-2024", "11-Mar-2024", "18-Mar-2024", "25-Mar-2024", "01-Apr-2024", "08-Apr-2024", "15-Apr-2024", "22-Apr-2024", "29-Apr-2024", "06-May-2024", "13-May-2024", "20-May-2024", "27-May-2024", "03-Jun-2024", "10-Jun-2024", "17-Jun-2024", "24-Jun-2024", "01-Jul-2024", "08-Jul-2024", "15-Jul-2024", "22-Jul-2024", "29-Jul-2024", "05-Aug-2024", "12-Aug-2024", "19-Aug-2024", "26-Aug-2024", "02-Sep-2024", "09-Sep-2024", "16-Sep-2024", "23-Sep-2024", "30-Sep-2024", "07-Oct-2024", "14-Oct-2024", "21-Oct-2024", "28-Oct-2024", "04-Nov-2024", "11-Nov-2024", "18-Nov-2024"], "planned": [0.1, 1.4, 4.2, 8.5, 12.3, 15.6, 19.3, 23.4, 27.0, 30.6, 33.8, 37.5, 41.6, 44.8, 45.9, 47.0, 48.1, 48.7, 49.8, 50.9, 51.5, 52.6, 54.6, 56.6, 58.6, 60.7, 63.2, 66.3, 68.9, 70.6, 72.6, 75.6, 78.1, 80.1, 82.1, 85.1, 88.0, 90.6, 93.2, 95.2, 97.2, 98.4, 99.6, 100.0, 100.0, 100.0], "actual": [0.1, 1.3, 3.4, 6.5, 10.2, 13.8, 17.1, 20.8, 24.1, 27.1, 29.6, 32.1, 33.8, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "forecast": [null, null, null, null, null, null, null, null, null, null, null, null, 33.8, 41.2, 44.1, 45.3, 45.9, 47.0, 48.1, 48.7, 49.8, 50.9, 51.5, 52.6, 54.6, 56.6, 58.6, 60.7, 63.2, 66.3, 68.9, 70.6, 72.6, 75.6, 78.1, 80.1, 82.1, 85.1, 88.0, 90.6, 93.2, 95.2, 97.2, 98.4, 99.4, 100.0]}};
+    let currentSelectedArea = null;
+    let lookaheadDays = 30;
+
+    // Charts instances
+    let scurveChartInstance = null;
+    let manpowerChartInstance = null;
+    let cashflowChartInstance = null;
+
+    // View Switching Logic
+    function switchView(viewName) {
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+      const targetView = document.getElementById('view-' + viewName);
+      const targetNav = document.getElementById('nav-' + viewName);
+      if (targetView) targetView.classList.remove('hidden');
+      if (targetNav) targetNav.classList.add('active');
+
+      const titles = {
+        overview: 'Overview & Interactive Layout',
+        lookahead: 'Lookahead Schedule Management',
+        manpower: 'Manpower & Labor Resources',
+        cashflow: 'Cashflow Spend & Cost Curves',
+        invoice: 'Contractor Payment Applications (IPC)'
+      };
+      document.getElementById('viewTitle').innerText = titles[viewName] || 'Construction Dashboard';
+
+      if (viewName === 'manpower' && !manpowerChartInstance) {
+        initManpowerChart();
+      }
+      if (viewName === 'cashflow' && !cashflowChartInstance) {
+        initCashflowChart();
+      }
+    }
+
+    // Area Selection Logic
+    function selectArea(areaCode, areaName) {
+      currentSelectedArea = areaCode;
+      document.getElementById('btnResetArea').classList.remove('hidden');
+      document.getElementById('activeAreaBadge').classList.remove('hidden');
+      document.getElementById('activeAreaNameText').innerText = areaName;
+      document.getElementById('selectedZoneLabel').innerText = 'Selected Area Performance';
+      document.getElementById('selectedZoneName').innerText = areaName + ' (' + areaCode + ')';
+
+      // Highlight SVG polygon
+      document.querySelectorAll('.zone-polygon').forEach(p => p.classList.remove('selected'));
+      const activeGroup = document.querySelector(`.zone-group[data-zone="${areaCode}"]`);
+      if (activeGroup) {
+        const polygon = activeGroup.querySelector('.zone-polygon');
+        if (polygon) polygon.classList.add('selected');
+      }
+
+      // Calculate area-specific KPIs
+      updateAreaKpis(areaCode);
+      applyGlobalFilters();
+    }
+
+    function resetAreaSelection() {
+      currentSelectedArea = null;
+      document.getElementById('btnResetArea').classList.add('hidden');
+      document.getElementById('activeAreaBadge').classList.add('hidden');
+      document.getElementById('selectedZoneLabel').innerText = 'Entire Project Performance';
+      document.getElementById('selectedZoneName').innerText = projectData.project_info.project_name + ' (All Zones)';
+
+      document.querySelectorAll('.zone-polygon').forEach(p => p.classList.remove('selected'));
+      updateAreaKpis(null);
+      applyGlobalFilters();
+    }
+
+    function updateAreaKpis(areaCode) {
+      if (!areaCode) {
+        // Reset to overall project summary
+        const s = projectData.summary;
+        const p = projectData.project_info;
+        document.getElementById('kpiActualPct').innerText = s.overall_progress_actual + '%';
+        document.getElementById('kpiPlannedPct').innerText = s.overall_progress_planned + '%';
+        document.getElementById('kpiProgressBar').style.width = Math.min(s.overall_progress_actual, 100) + '%';
+        document.getElementById('kpiSpi').innerText = s.spi;
+        document.getElementById('kpiVariancePct').innerText = (s.schedule_variance_pct >= 0 ? '+' : '') + s.schedule_variance_pct + '%';
+        document.getElementById('kpiVarianceDays').innerText = (p.schedule_slippage_days > 0 ? '+' + p.schedule_slippage_days + 'd slip' : 'On Target');
+        document.getElementById('kpiActiveTasks').innerText = s.status_counts['In Progress'];
+        document.getElementById('kpiTotalTasks').innerText = s.total_activities;
+        document.getElementById('kpiDoneTasks').innerText = s.status_counts['Completed'];
+        document.getElementById('kpiCriticalTasks').innerText = s.float_dist['Critical (<=0d)'];
+        document.getElementById('kpiDelayedTasks').innerText = s.delay_counts['Delayed'];
+        document.getElementById('selectedZoneStatusBadge').innerText = s.status_indicator;
+        return;
+      }
+
+      const area = projectData.areas_summary.find(a => a.area_code === areaCode);
+      if (area) {
+        document.getElementById('kpiActualPct').innerText = area.actual_pct + '%';
+        document.getElementById('kpiPlannedPct').innerText = area.planned_pct + '%';
+        document.getElementById('kpiProgressBar').style.width = Math.min(area.actual_pct, 100) + '%';
+        document.getElementById('kpiSpi').innerText = area.spi;
+        document.getElementById('kpiVariancePct').innerText = (area.var_pct >= 0 ? '+' : '') + area.var_pct + '%';
+        document.getElementById('kpiVarianceDays').innerText = area.status_indicator;
+        document.getElementById('kpiActiveTasks').innerText = area.in_progress_tasks;
+        document.getElementById('kpiTotalTasks').innerText = area.total_tasks;
+        document.getElementById('kpiDoneTasks').innerText = area.completed_tasks;
+        document.getElementById('kpiCriticalTasks').innerText = area.critical_tasks;
+        document.getElementById('kpiDelayedTasks').innerText = area.delayed_tasks;
+        document.getElementById('selectedZoneStatusBadge').innerText = area.status_indicator;
+      }
+    }
+
+    // Global Activity Code & WBS Filtering
+    function applyGlobalFilters() {
+      const selectedWbs = document.getElementById('filterWbsLevel')?.value || '';
+      const filterSelects = document.querySelectorAll('[id^="filterActv_"]');
+      const actvFilters = {};
+      filterSelects.forEach(sel => {
+        const key = sel.id.replace('filterActv_', '').replace('_', ' ');
+        if (sel.value) actvFilters[key] = sel.value;
+      });
+
+      const tbody = document.getElementById('masterTableBody');
+      tbody.innerHTML = '';
+
+      let filteredActs = projectData.all_activities.filter(a => {
+        // Area filter
+        if (currentSelectedArea && a.area_code !== currentSelectedArea) return false;
+        // WBS level filter
+        if (selectedWbs && String(a.wbs_level) !== String(selectedWbs)) return false;
+        // Activity code filters
+        for (const [tName, val] of Object.entries(actvFilters)) {
+          const taskCodes = a.activity_codes || {};
+          const hasCode = Object.entries(taskCodes).some(([k, obj]) => {
+            return (obj.code_val === val || obj.code_name === val);
+          });
+          if (!hasCode) return false;
+        }
+        return true;
+      });
+
+      filteredActs.forEach(a => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 " + (a.is_critical && a.status !== 'Completed' ? 'bg-rose-50/40' : '');
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${a.task_code}</td>
+          <td class="py-2.5 px-3 font-semibold text-slate-900">
+            ${a.task_name}
+            ${a.is_critical && a.status !== 'Completed' ? '<span class="ml-1 px-1.5 py-0.2 bg-rose-600 text-white rounded text-[9px] font-bold">CRITICAL</span>' : ''}
+          </td>
+          <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">${a.area_name}</span></td>
+          <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap">${a.wbs_name}</td>
+          <td class="py-2.5 px-2 whitespace-nowrap">
+            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${a.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : (a.status === 'In Progress' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600')}">
+              ${a.status}
+            </span>
+          </td>
+          <td class="py-2.5 px-2 text-slate-500 whitespace-nowrap">${a.bl_end}</td>
+          <td class="py-2.5 px-2 font-medium text-slate-900 whitespace-nowrap">${a.curr_end}</td>
+          <td class="py-2.5 px-2 text-center font-bold whitespace-nowrap ${a.finish_var_days > 0 ? 'text-rose-600' : (a.finish_var_days < 0 ? 'text-emerald-600' : 'text-slate-500')}">
+            ${a.finish_var_days > 0 ? '+' + a.finish_var_days + 'd' : (a.finish_var_days < 0 ? a.finish_var_days + 'd' : '0d')}
+          </td>
+          <td class="py-2.5 px-2 text-center font-mono font-bold whitespace-nowrap ${a.total_float_days <= 0 ? 'text-rose-600' : (a.total_float_days <= 10 ? 'text-amber-600' : 'text-slate-600')}">
+            ${a.total_float_days} d
+          </td>
+          <td class="py-2.5 px-2 text-center font-bold text-slate-800 whitespace-nowrap">
+            ${a.actual_pct}%
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Update lookahead table as well
+      updateLookaheadTable(filteredActs);
+    }
+
+    function resetAllFilters() {
+      const wbsSelect = document.getElementById('filterWbsLevel');
+      if (wbsSelect) wbsSelect.value = '';
+      document.querySelectorAll('[id^="filterActv_"]').forEach(sel => sel.value = '');
+      resetAreaSelection();
+    }
+
+    function filterActivitiesTable() {
+      const query = document.getElementById('overviewTableSearch').value.toLowerCase();
+      const rows = document.getElementById('masterTableBody').getElementsByTagName('tr');
+      for (let i = 0; i < rows.length; i++) {
+        const txt = rows[i].textContent.toLowerCase();
+        rows[i].style.display = txt.includes(query) ? '' : 'none';
+      }
+    }
+
+    // Lookahead Schedule Logic
+    function setLookaheadDays(days) {
+      lookaheadDays = days;
+      document.getElementById('btnLookahead30').className = days === 30 ? 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition' : 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+      document.getElementById('btnLookahead60').className = days === 60 ? 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition' : 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
+      applyGlobalFilters();
+    }
+
+    function updateLookaheadTable(acts) {
+      const key = lookaheadDays === 30 ? 'lookahead_30' : 'lookahead_60';
+      const lookaheadSource = projectData.lookahead[key] || [];
+      const tbody = document.getElementById('lookaheadTableBody');
+      tbody.innerHTML = '';
+
+      const matchedLookahead = lookaheadSource.filter(l => acts.some(a => a.task_code === l.task_code));
+      if (matchedLookahead.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-400">No activities scheduled within this ${lookaheadDays}-day window.</td></tr>`;
+        return;
+      }
+
+      matchedLookahead.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 " + (item.is_critical ? 'bg-rose-50/40' : '');
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${item.task_code}</td>
+          <td class="py-2.5 px-3 font-semibold text-slate-900">${item.task_name}</td>
+          <td class="py-2.5 px-2 text-slate-600"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-100 font-medium">${item.area_name}</span></td>
+          <td class="py-2.5 px-2 text-slate-600 whitespace-nowrap">${item.curr_start}</td>
+          <td class="py-2.5 px-2 font-medium text-slate-900 whitespace-nowrap">${item.curr_end}</td>
+          <td class="py-2.5 px-2 text-center font-bold text-slate-700">${item.remain_durn_days} d</td>
+          <td class="py-2.5 px-2 text-center font-bold ${item.total_float_days <= 0 ? 'text-rose-600' : 'text-slate-600'}">${item.total_float_days} d</td>
+          <td class="py-2.5 px-2 text-center font-bold text-blue-600">${item.actual_pct}%</td>
+          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">${item.window_status}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Custom Interactive Layout Upload Handler
+    function handleCustomLayoutUpload(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const reader = new FileReader();
+
+      if (file.name.endsWith('.svg')) {
+        reader.onload = function(e) {
+          const content = e.target.result;
+          const container = document.getElementById('layoutContainer');
+          container.innerHTML = content;
+          // Wire up any zones inside custom SVG
+          container.querySelectorAll('[data-zone], polygon, path, rect').forEach(el => {
+            const zId = el.getAttribute('data-zone') || el.id;
+            if (zId) {
+              el.classList.add('zone-polygon');
+              el.onclick = () => selectArea(zId, el.getAttribute('data-name') || zId);
+            }
+          });
+          alert('Custom interactive SVG layout loaded successfully!');
+        };
+        reader.readAsText(file);
+      } else {
+        // Image layout (PNG/JPG)
+        reader.onload = function(e) {
+          const imgUrl = e.target.result;
+          const container = document.getElementById('layoutContainer');
+          container.innerHTML = `
+            <div class="relative w-full h-full flex items-center justify-center">
+              <img src="${imgUrl}" alt="Custom Site Layout" class="max-h-[360px] object-contain rounded-lg">
+              <div class="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-2 p-4 pointer-events-none">
+                <button class="pointer-events-auto bg-blue-600/30 hover:bg-blue-600/50 border border-blue-400 rounded-lg p-2 text-white font-bold text-xs" onclick="selectArea('ZONE-SUB', 'Substructure Area')">Zone 1: Substructure</button>
+                <button class="pointer-events-auto bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400 rounded-lg p-2 text-white font-bold text-xs" onclick="selectArea('ZONE-TOW', 'Superstructure Area')">Zone 2: Tower</button>
+                <button class="pointer-events-auto bg-amber-600/30 hover:bg-amber-600/50 border border-amber-400 rounded-lg p-2 text-white font-bold text-xs" onclick="selectArea('ZONE-MEP', 'MEP Area')">Zone 3: MEP Plant</button>
+                <button class="pointer-events-auto bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-400 rounded-lg p-2 text-white font-bold text-xs" onclick="selectArea('ZONE-FIN', 'Finishes Area')">Zone 4: Finishes</button>
+              </div>
+            </div>
+          `;
+          alert('Custom layout image loaded with interactive zones overlay!');
+        };
+        reader.readAsDataURL(file);
+      }
+      input.value = '';
+    }
+
+    // S-Curve Chart Initialization
+    function initOverviewScurve() {
+      const scurveData = projectData.scurve;
+      const ctx = document.getElementById('overviewScurveChart').getContext('2d');
+      scurveChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: scurveData.labels,
+          datasets: [
+            {
+              label: 'Planned %',
+              data: scurveData.planned,
+              borderColor: '#94a3b8',
+              backgroundColor: 'rgba(148, 163, 184, 0.1)',
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              pointRadius: 1,
+            },
+            {
+              label: 'Actual %',
+              data: scurveData.actual,
+              borderColor: '#2563eb',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+              borderWidth: 2.8,
+              fill: false,
+              tension: 0.2,
+              pointRadius: 3,
+            },
+            {
+              label: 'Forecast %',
+              data: scurveData.forecast,
+              borderColor: '#f59e0b',
+              borderDash: [5, 5],
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              pointRadius: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
+            x: { ticks: { maxTicksLimit: 8, font: { size: 9 } } }
+          }
+        }
+      });
+    }
+
+    // Manpower Chart Initialization
+    function initManpowerChart() {
+      const mp = projectData.manpower;
+      const ctx = document.getElementById('manpowerChart').getContext('2d');
+      manpowerChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: mp.months,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Planned Labor Hours',
+              data: mp.planned_hours,
+              backgroundColor: 'rgba(148, 163, 184, 0.4)',
+              borderRadius: 4,
+            },
+            {
+              type: 'bar',
+              label: 'Actual Labor Hours',
+              data: mp.actual_hours,
+              backgroundColor: '#2563eb',
+              borderRadius: 4,
+            },
+            {
+              type: 'line',
+              label: 'Peak Headcount',
+              data: mp.headcount_planned,
+              borderColor: '#f59e0b',
+              borderWidth: 2.5,
+              yAxisID: 'y1',
+              tension: 0.3,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { title: { display: true, text: 'Labor Hours' } },
+            y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Workers' } }
+          }
+        }
+      });
+    }
+
+    // Cashflow Chart Initialization
+    function initCashflowChart() {
+      const cf = projectData.cashflow;
+      const ctx = document.getElementById('cashflowChart').getContext('2d');
+      cashflowChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: cf.months,
+          datasets: [
+            {
+              label: 'Cumulative Planned ($)',
+              data: cf.cum_planned,
+              borderColor: '#64748b',
+              borderWidth: 2,
+              tension: 0.3,
+            },
+            {
+              label: 'Cumulative Actual ($)',
+              data: cf.cum_actual,
+              borderColor: '#2563eb',
+              borderWidth: 3,
+              tension: 0.3,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { ticks: { callback: v => '$' + (v / 1000).toLocaleString() + 'k' } }
+          }
+        }
+      });
+    }
+
+    async function uploadDashboardBaseline(input) {
+      if (!input.files || !input.files[0]) return;
+      const fd = new FormData();
+      fd.append('baseline', input.files[0]);
+      try {
+        const res = await fetch('/api/upload-baseline', { method: 'POST', body: fd });
+        if (res.ok) {
+          alert('Baseline updated successfully! You can now upload weekly updates.');
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.detail || 'Failed to upload baseline'));
+        }
+      } catch (e) {
+        alert('Upload failed: ' + e.message);
+      }
+      input.value = '';
+    }
+
+    async function uploadDashboardUpdate(input) {
+      if (!input.files || !input.files[0]) return;
+      const fd = new FormData();
+      fd.append('update', input.files[0]);
+      try {
+        const res = await fetch('/api/upload-update', { method: 'POST', body: fd });
+        if (res.ok) {
+          const data = await res.json();
+          window.location.href = `/api/dashboard/update/${data.update_id}`;
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.detail || 'Failed to process update'));
+        }
+      } catch (e) {
+        alert('Upload failed: ' + e.message);
+      }
+      input.value = '';
+    }
+
+    // Initialize View on Page Load
+    window.addEventListener('DOMContentLoaded', () => {
+      initOverviewScurve();
+      applyGlobalFilters();
+    });
+  </script>
+</body>
+</html>

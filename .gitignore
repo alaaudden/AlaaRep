@@ -4,3 +4,9 @@ obj/
 *.suo
 .vscode/
 .idea/
+build/
+**/build/
+CMakeFiles/
+**/CMakeFiles/
+CMakeCache.txt
+**/CMakeCache.txt

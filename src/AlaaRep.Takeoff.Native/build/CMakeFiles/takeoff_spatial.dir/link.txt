@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC -shared -Wl,-soname,libtakeoff_spatial.so -o libtakeoff_spatial.so CMakeFiles/takeoff_spatial.dir/src/spatial_engine.cpp.o

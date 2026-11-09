@@ -2001,7 +2001,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BtnOpenPdf_Click(object sender, RoutedEventArgs e)
+    private async void BtnOpenPdf_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog
         {
@@ -2009,38 +2009,56 @@ public partial class MainWindow : Window
         };
         if (dlg.ShowDialog() == true)
         {
+            string fileName = dlg.FileName;
+            string shortName = System.IO.Path.GetFileName(fileName);
+            string ext = System.IO.Path.GetExtension(fileName).ToLowerInvariant();
+
+            TxtStatus.Text = $"Loading '{shortName}' in background thread (no freezing)...";
+            Cursor = Cursors.Wait;
+
             try
             {
-                string ext = System.IO.Path.GetExtension(dlg.FileName).ToLowerInvariant();
-                using var stream = File.OpenRead(dlg.FileName);
+                var calib = _doc.Calibration;
+                var existingZones = _doc.Zones.Count > 0 ? new List<Zone>(_doc.Zones) : null;
 
-                if (ext == ".pdf")
+                var loadedDoc = await Task.Run(() =>
                 {
-                    var doc = _pdfReader.ReadPdf(stream, System.IO.Path.GetFileName(dlg.FileName));
-                    doc.Calibration = _doc.Calibration;
-                    if (_doc.Zones.Count > 0 && doc.Zones.Count == 0) doc.Zones = new List<Zone>(_doc.Zones);
-                    _doc = doc;
-                }
-                else
-                {
-                    var doc = _dxfReader.ReadDxf(stream, System.IO.Path.GetFileName(dlg.FileName));
-                    doc.Calibration = _doc.Calibration;
-                    if (_doc.Zones.Count > 0 && doc.Zones.Count == 0) doc.Zones = new List<Zone>(_doc.Zones);
-                    _doc = doc;
-                }
+                    using var stream = File.OpenRead(fileName);
+                    if (ext == ".pdf")
+                    {
+                        var doc = _pdfReader.ReadPdf(stream, shortName);
+                        doc.Calibration = calib;
+                        if (existingZones != null && doc.Zones.Count == 0) doc.Zones = existingZones;
+                        return doc;
+                    }
+                    else
+                    {
+                        var doc = _dxfReader.ReadDxf(stream, shortName);
+                        doc.Calibration = calib;
+                        if (existingZones != null && doc.Zones.Count == 0) doc.Zones = existingZones;
+                        return doc;
+                    }
+                });
 
+                _doc = loadedDoc;
                 UpdateUiFromDoc();
                 ZoomFit();
-                MessageBox.Show($"Loaded drawing '{System.IO.Path.GetFileName(dlg.FileName)}' successfully!", "Drawing Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+                TxtStatus.Text = $"Ready - Loaded '{shortName}' ({_doc.Entities.Count} entities).";
+                MessageBox.Show($"Loaded drawing '{shortName}' successfully without freezing!", "Drawing Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
+                TxtStatus.Text = "Error loading drawing.";
                 MessageBox.Show($"Failed to load drawing: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                Cursor = Cursors.Arrow;
             }
         }
     }
 
-    private void BtnImportImage_Click(object sender, RoutedEventArgs e)
+    private async void BtnImportImage_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new OpenFileDialog
         {
@@ -2050,23 +2068,34 @@ public partial class MainWindow : Window
 
         if (dlg.ShowDialog() == true)
         {
+            string fileName = dlg.FileName;
+            string shortName = System.IO.Path.GetFileName(fileName);
+
+            TxtStatus.Text = $"Loading large plan '{shortName}' asynchronously...";
+            Cursor = Cursors.Wait;
+
             try
             {
-                var bi = new System.Windows.Media.Imaging.BitmapImage();
-                bi.BeginInit();
-                bi.UriSource = new Uri(dlg.FileName);
-                bi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                bi.EndInit();
-                bi.Freeze();
+                // Decode image on background thread for large high-res plans
+                var bi = await Task.Run(() =>
+                {
+                    var image = new System.Windows.Media.Imaging.BitmapImage();
+                    image.BeginInit();
+                    image.UriSource = new Uri(fileName);
+                    image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    image.EndInit();
+                    image.Freeze(); // Allow cross-thread access
+                    return image;
+                });
 
                 _bgImageSource = bi;
 
                 // Create or adapt DrawingDocument to match image dimensions
-                _doc.FileName = System.IO.Path.GetFileName(dlg.FileName);
+                _doc.FileName = shortName;
                 _doc.FileType = "Raster";
                 _doc.Width = bi.PixelWidth;
                 _doc.Height = bi.PixelHeight;
-                _doc.BackgroundImagePath = dlg.FileName;
+                _doc.BackgroundImagePath = fileName;
                 _doc.BackgroundImageWidth = bi.PixelWidth;
                 _doc.BackgroundImageHeight = bi.PixelHeight;
 
@@ -2077,9 +2106,10 @@ public partial class MainWindow : Window
 
                 UpdateUiFromDoc();
                 ZoomFit();
+                TxtStatus.Text = $"Ready - Plan loaded ({bi.PixelWidth} x {bi.PixelHeight} px).";
 
                 var res = MessageBox.Show(
-                    $"Imported drawing image ({bi.PixelWidth} x {bi.PixelHeight} px).\n\nWould you like to Calibrate Scale now (pick 2 points of known dimension on the plan)?",
+                    $"Imported drawing image ({bi.PixelWidth} x {bi.PixelHeight} px) without lag!\n\nWould you like to Calibrate Scale now (pick 2 points of known dimension on the plan)?",
                     "Drawing Imported",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Information);
@@ -2092,7 +2122,12 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
+                TxtStatus.Text = "Error importing plan image.";
                 MessageBox.Show($"Failed to load drawing image: {ex.Message}", "Image Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                Cursor = Cursors.Arrow;
             }
         }
     }

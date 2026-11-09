@@ -2,6 +2,7 @@
 #include "TakeoffEngine.h"
 #include "TakeoffParsers.h"
 #include <iostream>
+#include <fstream>
 #include <cassert>
 
 using namespace AlaaRep::Takeoff;
@@ -72,10 +73,34 @@ void Verify_CppBluebeamAndImageLoading() {
     std::cout << "[PASS] Verify_CppBluebeamAndImageLoading\n";
 }
 
+void Verify_LargeDxf_Optimization_And_Chunking() {
+    DrawingDocument doc;
+    // Generate synthetic DXF with 5,000 line segments
+    std::string testDxfPath = "/tmp/synthetic_large.dxf";
+    {
+        std::ofstream dxf(testDxfPath);
+        dxf << "0\nSECTION\n2\nENTITIES\n";
+        for (int i = 0; i < 5000; ++i) {
+            dxf << "0\nLINE\n8\nWALLS\n10\n" << (i * 2) << "\n20\n" << (i * 3)
+                << "\n11\n" << (i * 2 + 10) << "\n21\n" << (i * 3 + 10) << "\n";
+        }
+        dxf << "0\nENDSEC\n0\nEOF\n";
+    }
+
+    bool readOk = TakeoffParsers::ReadDxf(testDxfPath, doc, 10000);
+    assert(readOk);
+    assert(doc.entities.size() == 5000);
+    assert(doc.entities[0].points.size() == 2);
+    assert(doc.entities[0].layer == "WALLS");
+
+    std::cout << "[PASS] Verify_LargeDxf_Optimization_And_Chunking (5000 CAD entities parsed)\n";
+}
+
 int main() {
     std::cout << "Running AlaaRep Takeoff C++ Core Unit Tests...\n";
     Verify_CppPolygonArea_And_WallArea();
     Verify_CppBluebeamAndImageLoading();
+    Verify_LargeDxf_Optimization_And_Chunking();
     std::cout << "All C++ Tests Passed Successfully!\n";
     return 0;
 }

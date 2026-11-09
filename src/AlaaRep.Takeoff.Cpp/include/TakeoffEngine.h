@@ -48,6 +48,7 @@ public:
     static double CalculatePolylineLength(const std::vector<Point2D>& points);
     static bool IsPointInPolygon(const Point2D& pt, const std::vector<Point2D>& poly);
     static double CalculatePolylineLengthInZone(const std::vector<Point2D>& line, const std::vector<Point2D>& zonePoly);
+    static double CalculatePolygonAreaInZone(const std::vector<Point2D>& subjectPoly, const std::vector<Point2D>& zonePoly);
 
     static CppQuantityReport CalculateReport(const DrawingDocument& doc);
     static bool ExportToCsv(const CppQuantityReport& report, const std::string& outputPath);

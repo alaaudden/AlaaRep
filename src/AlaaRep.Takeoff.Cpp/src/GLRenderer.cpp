@@ -236,6 +236,18 @@ void GLRenderer::Render(const DrawingDocument& doc) {
 
     // 4. Draw Takeoff Objects
     DrawTakeoffObjects(doc.takeoffObjects);
+
+    // 5. Draw in-progress rubberband points if drawing shape
+    if (inProgressPoints.size() >= 2) {
+        std::vector<DrawingEntity> tempLines;
+        for (size_t i = 0; i + 1 < inProgressPoints.size(); ++i) {
+            DrawingEntity de;
+            de.points = { inProgressPoints[i], inProgressPoints[i + 1] };
+            de.r = 0.96f; de.g = 0.62f; de.b = 0.04f; // Amber rubberband
+            tempLines.push_back(de);
+        }
+        DrawVectorEntities(tempLines);
+    }
 }
 
 void GLRenderer::DrawBackgroundTexture(double w, double h, double opacity) {
@@ -412,6 +424,67 @@ void GLRenderer::DrawTakeoffObjects(const std::vector<TakeoffObject>& objects) {
 
             glLineWidth(3.0f);
             glDrawArrays(GL_LINES, 0, (GLsizei)(lineData.size() / 6));
+        } else if (obj.measurementType == MeasurementType::Area && obj.points.size() >= 3) {
+            // Draw filled polygon (triangle fan from vertex 0)
+            std::vector<float> triData;
+            Point2D s0 = DrawingToScreen(obj.points[0].x, obj.points[0].y);
+
+            for (size_t i = 1; i + 1 < obj.points.size(); ++i) {
+                Point2D s1 = DrawingToScreen(obj.points[i].x, obj.points[i].y);
+                Point2D s2 = DrawingToScreen(obj.points[i + 1].x, obj.points[i + 1].y);
+
+                triData.push_back(toNdcX(s0.x)); triData.push_back(toNdcY(s0.y));
+                triData.push_back(obj.r); triData.push_back(obj.g); triData.push_back(obj.b); triData.push_back((float)obj.opacity);
+
+                triData.push_back(toNdcX(s1.x)); triData.push_back(toNdcY(s1.y));
+                triData.push_back(obj.r); triData.push_back(obj.g); triData.push_back(obj.b); triData.push_back((float)obj.opacity);
+
+                triData.push_back(toNdcX(s2.x)); triData.push_back(toNdcY(s2.y));
+                triData.push_back(obj.r); triData.push_back(obj.g); triData.push_back(obj.b); triData.push_back((float)obj.opacity);
+            }
+
+            if (!triData.empty()) {
+                glBindVertexArray(m_vao);
+                glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+                glBufferData(GL_ARRAY_BUFFER, triData.size() * sizeof(float), triData.data(), GL_DYNAMIC_DRAW);
+
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+                glEnableVertexAttribArray(0);
+
+                glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(2 * sizeof(float)));
+                glEnableVertexAttribArray(1);
+
+                glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(triData.size() / 6));
+            }
+
+            // Draw solid perimeter outline for area object
+            std::vector<float> lineData;
+            for (size_t i = 0; i < obj.points.size(); ++i) {
+                size_t next = (i + 1) % obj.points.size();
+                Point2D s1 = DrawingToScreen(obj.points[i].x, obj.points[i].y);
+                Point2D s2 = DrawingToScreen(obj.points[next].x, obj.points[next].y);
+
+                lineData.push_back(toNdcX(s1.x)); lineData.push_back(toNdcY(s1.y));
+                lineData.push_back(obj.r); lineData.push_back(obj.g); lineData.push_back(obj.b); lineData.push_back(1.0f);
+
+                lineData.push_back(toNdcX(s2.x)); lineData.push_back(toNdcY(s2.y));
+                lineData.push_back(obj.r); lineData.push_back(obj.g); lineData.push_back(obj.b); lineData.push_back(1.0f);
+            }
+
+            if (!lineData.empty()) {
+                glBindVertexArray(m_vao);
+                glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+                glBufferData(GL_ARRAY_BUFFER, lineData.size() * sizeof(float), lineData.data(), GL_DYNAMIC_DRAW);
+
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+                glEnableVertexAttribArray(0);
+
+                glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(2 * sizeof(float)));
+                glEnableVertexAttribArray(1);
+
+                glLineWidth(2.5f);
+                glDrawArrays(GL_LINES, 0, (GLsizei)(lineData.size() / 6));
+            }
         } else if (obj.measurementType == MeasurementType::Count) {
             // Draw point glyphs as quads
             std::vector<float> quadData;

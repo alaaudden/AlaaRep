@@ -52,9 +52,20 @@ public static class NativeSpatialEngine
             // Try resolving native library from local runtimes path if needed
             string baseDir = AppContext.BaseDirectory;
             string runtimesPath = Path.Combine(baseDir, "runtimes", "linux-x64", "native", "libtakeoff_spatial.so");
-            if (File.Exists(runtimesPath))
+            string directPath = Path.Combine(baseDir, "libtakeoff_spatial.so");
+            string repoNativePath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "src", "AlaaRep.Takeoff.Native", "build", "libtakeoff_spatial.so"));
+
+            if (File.Exists(directPath))
+            {
+                NativeLibrary.TryLoad(directPath, out _);
+            }
+            else if (File.Exists(runtimesPath))
             {
                 NativeLibrary.TryLoad(runtimesPath, out _);
+            }
+            else if (File.Exists(repoNativePath))
+            {
+                NativeLibrary.TryLoad(repoNativePath, out _);
             }
 
             double[] dummy = { 0, 0, 10, 0, 10, 10, 0, 10 };

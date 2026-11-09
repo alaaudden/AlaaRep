@@ -2,8 +2,12 @@
 #include "TakeoffParsers.h"
 #include "TakeoffEngine.h"
 #include "GLRenderer.h"
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 #include <iostream>
 #include <iomanip>
+#include <cstring>
 
 using namespace AlaaRep::Takeoff;
 
@@ -17,9 +21,17 @@ int main(int argc, char** argv) {
 
     std::string csvExportPath;
     std::string imagePath;
+    std::string pdfPath;
     std::string dxfPath;
     std::string bluebeamPath;
     bool headless = false;
+
+    // Direct object creation options
+    std::string addWallCoords;
+    double wallHeight = 3.0;
+    std::string addZoneCoords;
+    std::string zoneName = "Custom Zone";
+    std::string zoneCode = "ZN-CUST";
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -27,12 +39,24 @@ int main(int argc, char** argv) {
             csvExportPath = argv[++i];
         } else if (arg == "--image" && i + 1 < argc) {
             imagePath = argv[++i];
+        } else if (arg == "--pdf" && i + 1 < argc) {
+            pdfPath = argv[++i];
         } else if (arg == "--dxf" && i + 1 < argc) {
             dxfPath = argv[++i];
         } else if (arg == "--bluebeam" && i + 1 < argc) {
             bluebeamPath = argv[++i];
         } else if (arg == "--headless") {
             headless = true;
+        } else if (arg == "--wall-height" && i + 1 < argc) {
+            wallHeight = std::stod(argv[++i]);
+        } else if (arg == "--add-wall" && i + 1 < argc) {
+            addWallCoords = argv[++i];
+        } else if (arg == "--add-zone" && i + 1 < argc) {
+            addZoneCoords = argv[++i];
+        } else if (arg == "--zone-name" && i + 1 < argc) {
+            zoneName = argv[++i];
+        } else if (arg == "--zone-code" && i + 1 < argc) {
+            zoneCode = argv[++i];
         }
     }
 
@@ -48,6 +72,26 @@ int main(int argc, char** argv) {
         }
     }
 
+    // 1b. Load and Rasterize PDF drawing if specified
+    if (!pdfPath.empty()) {
+        std::cout << "[Takeoff C++] Rasterizing large architectural PDF drawing (zero-lag): " << pdfPath << std::endl;
+        PlanImageData pdfImg;
+        if (TakeoffParsers::RenderPdfToImage(pdfPath, 150, pdfImg)) {
+            doc.backgroundImage = pdfImg;
+            doc.width = pdfImg.width;
+            doc.height = pdfImg.height;
+            std::cout << "[Takeoff C++] Successfully rasterized PDF page (" << pdfImg.width << " x " << pdfImg.height << " px).\n";
+        }
+    }
+
+    // 1c. Load CAD DXF drawing if specified
+    if (!dxfPath.empty()) {
+        std::cout << "[Takeoff C++] Parsing CAD DXF drawing: " << dxfPath << std::endl;
+        if (TakeoffParsers::ReadDxf(dxfPath, doc)) {
+            std::cout << "[Takeoff C++] Successfully imported " << doc.entities.size() << " CAD entities.\n";
+        }
+    }
+
     // 2. Load Bluebeam Markups if specified
     if (!bluebeamPath.empty()) {
         std::cout << "[Takeoff C++] Importing Bluebeam Revu markups: " << bluebeamPath << std::endl;
@@ -56,6 +100,46 @@ int main(int argc, char** argv) {
             doc.takeoffObjects.insert(doc.takeoffObjects.end(), bbObjects.begin(), bbObjects.end());
             std::cout << "[Takeoff C++] Successfully imported " << bbObjects.size() << " Bluebeam items.\n";
         }
+    }
+
+    // Helper to parse coordinate strings: "x1,y1;x2,y2;..."
+    auto parseCoords = [](const std::string& str) {
+        std::vector<Point2D> pts;
+        std::stringstream ss(str);
+        std::string pair;
+        while (std::getline(ss, pair, ';')) {
+            size_t comma = pair.find(',');
+            if (comma != std::string::npos) {
+                double x = std::stod(pair.substr(0, comma));
+                double y = std::stod(pair.substr(comma + 1));
+                pts.emplace_back(x, y);
+            }
+        }
+        return pts;
+    };
+
+    if (!addWallCoords.empty()) {
+        TakeoffObject customWall;
+        customWall.id = "wall-user-" + std::to_string(doc.takeoffObjects.size() + 1);
+        customWall.name = "Custom Wall Partition";
+        customWall.category = "Partitions";
+        customWall.measurementType = MeasurementType::Length;
+        customWall.height = wallHeight;
+        customWall.points = parseCoords(addWallCoords);
+        customWall.setBimProperty("UnitCost", "55.00");
+        customWall.setBimProperty("Family", "Wall:Interior Drywall");
+        doc.takeoffObjects.push_back(customWall);
+        std::cout << "[Takeoff C++] Added custom wall with height " << wallHeight << "m (" << customWall.points.size() << " vertices).\n";
+    }
+
+    if (!addZoneCoords.empty()) {
+        Zone customZone;
+        customZone.id = "zone-user-" + std::to_string(doc.zones.size() + 1);
+        customZone.name = zoneName;
+        customZone.code = zoneCode;
+        customZone.boundary = parseCoords(addZoneCoords);
+        doc.zones.push_back(customZone);
+        std::cout << "[Takeoff C++] Added custom zone: " << zoneName << " (" << customZone.boundary.size() << " vertices).\n";
     }
 
     // 3. Compute QTO with Wall Height and Zone Breakdown
@@ -113,14 +197,359 @@ int main(int argc, char** argv) {
         std::cout << "[Takeoff C++] OpenGL Hardware accelerated viewport running at 60+ FPS.\n";
         std::cout << "[Takeoff C++] Controls: Mouse Drag to Pan, Scroll to Zoom, Close window to exit.\n";
 
-        // Render loop
-        int frame = 0;
-        while (!renderer.ShouldClose() && frame < 300) { // In automated runs, cap or run until close
+        // Setup interactive GLFW input callbacks
+        static GLRenderer* s_renderer = &renderer;
+        static DrawingDocument* s_doc = &doc;
+        static bool s_isPanning = false;
+        static double s_lastMouseX = 0.0, s_lastMouseY = 0.0;
+
+        glfwSetMouseButtonCallback(renderer.GetWindow(), [](GLFWwindow* w, int button, int action, int mods) {
+            if (button == GLFW_MOUSE_BUTTON_RIGHT || button == GLFW_MOUSE_BUTTON_MIDDLE) {
+                if (action == GLFW_PRESS) {
+                    s_isPanning = true;
+                    glfwGetCursorPos(w, &s_lastMouseX, &s_lastMouseY);
+                } else if (action == GLFW_RELEASE) {
+                    s_isPanning = false;
+                }
+            } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                // Don't place drawing points if user is clicking inside ImGui UI windows
+                if (ImGui::GetIO().WantCaptureMouse) return;
+
+                // Interactive shape drawing point click
+                double mx, my;
+                glfwGetCursorPos(w, &mx, &my);
+                Point2D drawPt = s_renderer->ScreenToDrawing(mx, my);
+
+                if (s_renderer->activeTool == "Length" || s_renderer->activeTool == "Area" || s_renderer->activeTool == "Zone") {
+                    s_renderer->inProgressPoints.push_back(drawPt);
+                    std::cout << "[Takeoff C++] Added vertex (" << drawPt.x << ", " << drawPt.y << ") - press ENTER to complete shape.\n";
+                } else if (s_renderer->activeTool == "Count") {
+                    TakeoffObject cnt;
+                    cnt.id = "cnt-" + std::to_string(s_doc->takeoffObjects.size() + 1);
+                    cnt.name = "Count Item";
+                    cnt.category = "Equipment";
+                    cnt.measurementType = MeasurementType::Count;
+                    cnt.points = { drawPt };
+                    s_doc->takeoffObjects.push_back(cnt);
+                    std::cout << "[Takeoff C++] Added count item at (" << drawPt.x << ", " << drawPt.y << ").\n";
+                }
+            }
+        });
+
+        glfwSetCursorPosCallback(renderer.GetWindow(), [](GLFWwindow* w, double xpos, double ypos) {
+            if (s_isPanning && s_renderer) {
+                double dx = xpos - s_lastMouseX;
+                double dy = ypos - s_lastMouseY;
+                s_renderer->Pan(dx, dy);
+                s_lastMouseX = xpos;
+                s_lastMouseY = ypos;
+            }
+        });
+
+        glfwSetScrollCallback(renderer.GetWindow(), [](GLFWwindow* w, double xoffset, double yoffset) {
+            if (s_renderer) {
+                double xpos, ypos;
+                glfwGetCursorPos(w, &xpos, &ypos);
+                double factor = yoffset > 0 ? 1.15 : 0.85;
+                s_renderer->Zoom(factor, xpos, ypos);
+            }
+        });
+
+        glfwSetKeyCallback(renderer.GetWindow(), [](GLFWwindow* w, int key, int scancode, int action, int mods) {
+            if (action != GLFW_PRESS) return;
+
+            if (key == GLFW_KEY_ESCAPE) {
+                if (!s_renderer->inProgressPoints.empty()) {
+                    s_renderer->inProgressPoints.clear();
+                    std::cout << "[Takeoff C++] In-progress drawing canceled.\n";
+                } else {
+                    glfwSetWindowShouldClose(w, GLFW_TRUE);
+                }
+            } else if (key == GLFW_KEY_L) {
+                s_renderer->activeTool = "Length";
+                s_renderer->inProgressPoints.clear();
+                std::cout << "[Takeoff C++] Active Tool: Length / Wall (Click to add points, ENTER to finish)\n";
+            } else if (key == GLFW_KEY_A) {
+                s_renderer->activeTool = "Area";
+                s_renderer->inProgressPoints.clear();
+                std::cout << "[Takeoff C++] Active Tool: Area (Click to add points, ENTER to finish)\n";
+            } else if (key == GLFW_KEY_Z) {
+                s_renderer->activeTool = "Zone";
+                s_renderer->inProgressPoints.clear();
+                std::cout << "[Takeoff C++] Active Tool: Zone (Click to add boundary points, ENTER to finish)\n";
+            } else if (key == GLFW_KEY_C) {
+                s_renderer->activeTool = "Count";
+                s_renderer->inProgressPoints.clear();
+                std::cout << "[Takeoff C++] Active Tool: Count (Click points to place items)\n";
+            } else if (key == GLFW_KEY_ENTER) {
+                if (s_renderer->inProgressPoints.size() >= 2) {
+                    if (s_renderer->activeTool == "Length") {
+                        TakeoffObject wall;
+                        wall.id = "wall-" + std::to_string(s_doc->takeoffObjects.size() + 1);
+                        wall.name = "Wall Partition";
+                        wall.category = "Partitions";
+                        wall.measurementType = MeasurementType::Length;
+                        wall.height = 3.0; // standard wall height
+                        wall.points = s_renderer->inProgressPoints;
+                        wall.setBimProperty("Family", "Wall:Interior");
+                        wall.setBimProperty("UnitCost", "50.00");
+                        s_doc->takeoffObjects.push_back(wall);
+                        std::cout << "[Takeoff C++] Completed Wall with height 3.0m (" << wall.points.size() << " points).\n";
+                    } else if (s_renderer->activeTool == "Area") {
+                        TakeoffObject area;
+                        area.id = "area-" + std::to_string(s_doc->takeoffObjects.size() + 1);
+                        area.name = "Floor Finish";
+                        area.category = "Finishes";
+                        area.measurementType = MeasurementType::Area;
+                        area.points = s_renderer->inProgressPoints;
+                        area.setBimProperty("UnitCost", "40.00");
+                        s_doc->takeoffObjects.push_back(area);
+                        std::cout << "[Takeoff C++] Completed Floor Area (" << area.points.size() << " points).\n";
+                    } else if (s_renderer->activeTool == "Zone") {
+                        Zone zone;
+                        zone.id = "zone-" + std::to_string(s_doc->zones.size() + 1);
+                        zone.name = "Zone " + std::to_string(s_doc->zones.size() + 1);
+                        zone.code = "ZN-" + std::to_string(s_doc->zones.size() + 1);
+                        zone.boundary = s_renderer->inProgressPoints;
+                        s_doc->zones.push_back(zone);
+                        std::cout << "[Takeoff C++] Completed Zone: " << zone.name << ".\n";
+                    }
+                    s_renderer->inProgressPoints.clear();
+                }
+            }
+        });
+
+        // Initialize Dear ImGui context and backends
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        ImGui::StyleColorsDark();
+
+        // Customize style for modern BIM CAD dark theme
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.WindowRounding = 6.0f;
+        style.FrameRounding = 4.0f;
+        style.PopupRounding = 4.0f;
+        style.ScrollbarRounding = 4.0f;
+        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.08f, 0.11f, 0.17f, 0.94f);
+        style.Colors[ImGuiCol_Header] = ImVec4(0.15f, 0.23f, 0.36f, 1.0f);
+        style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.23f, 0.35f, 0.54f, 1.0f);
+        style.Colors[ImGuiCol_Button] = ImVec4(0.18f, 0.28f, 0.44f, 1.0f);
+        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.24f, 0.38f, 0.60f, 1.0f);
+
+        ImGui_ImplGlfw_InitForOpenGL(renderer.GetWindow(), true);
+        ImGui_ImplOpenGL3_Init("#version 330");
+
+        int selectedObjIndex = -1;
+        int selectedZoneIndex = -1;
+        char nameBuf[128] = "";
+        char catBuf[128] = "";
+        char layerBuf[128] = "";
+        float editHeight = 3.0f;
+        char newPropKey[64] = "Material";
+        char newPropVal[64] = "Drywall STC 52";
+        char loadFilePath[256] = "samples/architectural_plan_sample.png";
+
+        // Interactive render loop (stays open until user closes window)
+        while (!renderer.ShouldClose()) {
             renderer.PollEvents();
+
+            // Start ImGui frame
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
+
+            // 1. Top Ribbon Toolbar
+            ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(800, 70), ImGuiCond_Always);
+            if (ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+                ImGui::TextColored(ImVec4(0.23f, 0.73f, 0.96f, 1.0f), "AlaaRep Takeoff C++ (OpenGL 3.3)");
+                ImGui::SameLine();
+                ImGui::Text("| Active Tool: %s", renderer.activeTool.c_str());
+                ImGui::SameLine();
+                ImGui::Text("| Zoom: %.2fx", renderer.GetZoom());
+
+                if (ImGui::Button("Select (Esc)")) { renderer.activeTool = "Select"; renderer.inProgressPoints.clear(); }
+                ImGui::SameLine();
+                if (ImGui::Button("Count (C)")) { renderer.activeTool = "Count"; renderer.inProgressPoints.clear(); }
+                ImGui::SameLine();
+                if (ImGui::Button("Length/Wall (L)")) { renderer.activeTool = "Length"; renderer.inProgressPoints.clear(); }
+                ImGui::SameLine();
+                if (ImGui::Button("Area (A)")) { renderer.activeTool = "Area"; renderer.inProgressPoints.clear(); }
+                ImGui::SameLine();
+                if (ImGui::Button("Zone (Z)")) { renderer.activeTool = "Zone"; renderer.inProgressPoints.clear(); }
+                ImGui::SameLine();
+                if (ImGui::Button("Zoom Fit")) { renderer.ZoomFit(doc.width, doc.height); }
+            }
+            ImGui::End();
+
+            // 2. Right Sidebar: BIM Property Inspector & Hierarchy
+            ImGui::SetNextWindowPos(ImVec2(920, 10), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(410, 820), ImGuiCond_Always);
+            if (ImGui::Begin("BIM Inspector & Takeoff Studio", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+                if (ImGui::CollapsingHeader("📁 DRAWING INGESTION (PDF / CAD / RASTER)", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::InputText("File Path", loadFilePath, sizeof(loadFilePath));
+                    if (ImGui::Button("Load Background Image")) {
+                        PlanImageData img;
+                        if (TakeoffParsers::LoadPlanImage(loadFilePath, img)) {
+                            doc.backgroundImage = img;
+                            doc.width = img.width;
+                            doc.height = img.height;
+                            renderer.UpdateTexture(img);
+                            renderer.ZoomFit(doc.width, doc.height);
+                        }
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Load PDF Plan")) {
+                        PlanImageData img;
+                        if (TakeoffParsers::RenderPdfToImage(loadFilePath, 150, img)) {
+                            doc.backgroundImage = img;
+                            doc.width = img.width;
+                            doc.height = img.height;
+                            renderer.UpdateTexture(img);
+                            renderer.ZoomFit(doc.width, doc.height);
+                        }
+                    }
+                    ImGui::SliderFloat("Plan Opacity", (float*)&doc.backgroundImageOpacity, 0.1f, 1.0f);
+                }
+
+                if (ImGui::CollapsingHeader("🏢 BIM PROPERTY INSPECTOR", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    if (doc.takeoffObjects.empty()) {
+                        ImGui::TextDisabled("No takeoff objects. Click canvas with L, A, or C tools.");
+                    } else {
+                        std::vector<std::string> itemNames;
+                        for (size_t i = 0; i < doc.takeoffObjects.size(); ++i) {
+                            itemNames.push_back(std::to_string(i + 1) + ". " + doc.takeoffObjects[i].name);
+                        }
+                        std::vector<const char*> itemPtrs;
+                        for (const auto& s : itemNames) itemPtrs.push_back(s.c_str());
+
+                        int currentItem = selectedObjIndex >= 0 ? selectedObjIndex : 0;
+                        if (ImGui::Combo("Select Object", &currentItem, itemPtrs.data(), (int)itemPtrs.size())) {
+                            selectedObjIndex = currentItem;
+                            auto& o = doc.takeoffObjects[selectedObjIndex];
+                            std::strncpy(nameBuf, o.name.c_str(), sizeof(nameBuf));
+                            std::strncpy(catBuf, o.category.c_str(), sizeof(catBuf));
+                            std::strncpy(layerBuf, o.layer.c_str(), sizeof(layerBuf));
+                            editHeight = (float)o.height;
+                        }
+
+                        if (selectedObjIndex >= 0 && selectedObjIndex < (int)doc.takeoffObjects.size()) {
+                            auto& sel = doc.takeoffObjects[selectedObjIndex];
+                            if (ImGui::InputText("Item Name", nameBuf, sizeof(nameBuf))) sel.name = nameBuf;
+                            if (ImGui::InputText("Category", catBuf, sizeof(catBuf))) sel.category = catBuf;
+                            if (ImGui::InputText("Layer", layerBuf, sizeof(layerBuf))) sel.layer = layerBuf;
+
+                            if (sel.measurementType == MeasurementType::Length) {
+                                if (ImGui::InputFloat("Wall Height (m)", &editHeight, 0.1f, 1.0f, "%.2f")) {
+                                    sel.height = editHeight;
+                                    sel.setBimProperty("Height", std::to_string(editHeight));
+                                }
+                                double len = TakeoffEngine::CalculatePolylineLength(sel.points) * doc.calibration.getUnitsPerPixel();
+                                double wallArea = len * sel.height;
+                                ImGui::TextColored(ImVec4(0.96f, 0.62f, 0.04f, 1.0f), "Wall Surface Area: %.2f m² (Length: %.2f m)", wallArea, len);
+                            } else if (sel.measurementType == MeasurementType::Area) {
+                                double area = TakeoffEngine::CalculatePolygonArea(sel.points) * std::pow(doc.calibration.getUnitsPerPixel(), 2);
+                                ImGui::TextColored(ImVec4(0.06f, 0.72f, 0.50f, 1.0f), "Floor Area: %.2f m²", area);
+                            } else {
+                                ImGui::TextColored(ImVec4(0.23f, 0.51f, 0.96f, 1.0f), "Count: %zu pcs", sel.points.size());
+                            }
+
+                            // Custom BIM Attributes
+                            ImGui::Separator();
+                            ImGui::Text("BIM / IFC Key-Value Attributes:");
+                            for (auto& [k, v] : sel.bimProperties) {
+                                ImGui::BulletText("%s: %s", k.c_str(), v.c_str());
+                            }
+
+                            ImGui::InputText("Attribute Key", newPropKey, sizeof(newPropKey));
+                            ImGui::InputText("Attribute Value", newPropVal, sizeof(newPropVal));
+                            if (ImGui::Button("+ Add / Update Attribute")) {
+                                sel.setBimProperty(newPropKey, newPropVal);
+                            }
+
+                            ImGui::SameLine();
+                            if (ImGui::Button("Delete Item")) {
+                                doc.takeoffObjects.erase(doc.takeoffObjects.begin() + selectedObjIndex);
+                                selectedObjIndex = -1;
+                            }
+                        }
+                    }
+                }
+
+                if (ImGui::CollapsingHeader("📐 SPECIFIC LAYOUT ZONES", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    for (size_t i = 0; i < doc.zones.size(); ++i) {
+                        ImGui::BulletText("[%s] %s (%zu vertices)", doc.zones[i].code.c_str(), doc.zones[i].name.c_str(), doc.zones[i].boundary.size());
+                    }
+                }
+
+                if (ImGui::CollapsingHeader("📊 QUANTITY TAKEOFF (QTO) REPORT", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    auto liveReport = TakeoffEngine::CalculateReport(doc);
+                    ImGui::Text("Total Length: %.2f m | Wall Area: %.2f m²", liveReport.grandTotalLength, liveReport.grandTotalWallArea);
+                    ImGui::Text("Floor Area:   %.2f m² | Total Cost: $%.2f", liveReport.grandTotalArea, liveReport.grandTotalCost);
+
+                    if (ImGui::Button("Export QTO to CSV")) {
+                        TakeoffEngine::ExportToCsv(liveReport, "takeoff_qto_export.csv");
+                        std::cout << "[Takeoff C++] Exported live report to takeoff_qto_export.csv\n";
+                    }
+
+                    if (ImGui::BeginTable("QtoTable", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY, ImVec2(0, 160))) {
+                        ImGui::TableSetupColumn("Item");
+                        ImGui::TableSetupColumn("Zone");
+                        ImGui::TableSetupColumn("Qty / Wall Area");
+                        ImGui::TableSetupColumn("Cost");
+                        ImGui::TableHeadersRow();
+
+                        for (const auto& item : liveReport.items) {
+                            if (!item.zoneBreakdowns.empty()) {
+                                for (const auto& zb : item.zoneBreakdowns) {
+                                    ImGui::TableNextRow();
+                                    ImGui::TableSetColumnIndex(0); ImGui::Text("%s", item.name.c_str());
+                                    ImGui::TableSetColumnIndex(1); ImGui::Text("%s", zb.zoneName.c_str());
+                                    ImGui::TableSetColumnIndex(2);
+                                    if (item.measurementType == MeasurementType::Length) {
+                                        ImGui::Text("%.1fm (%.1fm²)", zb.length, zb.wallArea);
+                                    } else if (item.measurementType == MeasurementType::Area) {
+                                        ImGui::Text("%.1f m²", zb.area);
+                                    } else {
+                                        ImGui::Text("%d pcs", zb.count);
+                                    }
+                                    ImGui::TableSetColumnIndex(3); ImGui::Text("$%.2f", zb.cost);
+                                }
+                            } else {
+                                ImGui::TableNextRow();
+                                ImGui::TableSetColumnIndex(0); ImGui::Text("%s", item.name.c_str());
+                                ImGui::TableSetColumnIndex(1); ImGui::Text("Unassigned");
+                                ImGui::TableSetColumnIndex(2);
+                                if (item.measurementType == MeasurementType::Length) {
+                                    ImGui::Text("%.1fm (%.1fm²)", item.totalLength, item.totalWallArea);
+                                } else {
+                                    ImGui::Text("%.1f m²", item.totalArea);
+                                }
+                                ImGui::TableSetColumnIndex(3); ImGui::Text("$%.2f", item.totalCost);
+                            }
+                        }
+                        ImGui::EndTable();
+                    }
+                }
+            }
+            ImGui::End();
+
+            // Render OpenGL Viewport scene
             renderer.Render(doc);
+
+            // Render Dear ImGui draw data over OpenGL viewport
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
             renderer.SwapBuffers();
-            frame++;
         }
+
+        // Cleanup ImGui
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
     } else {
         std::cout << "[Takeoff C++] Note: Display window could not open (headless/remote environment). CLI/computation functionality 100% active.\n";
     }

@@ -10,3 +10,7 @@ CMakeFiles/
 **/CMakeFiles/
 CMakeCache.txt
 **/CMakeCache.txt
+*.so
+*.dll
+*.dylib
+*.a

@@ -6,6 +6,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+#include <poppler-document.h>
+#include <poppler-page.h>
+#include <poppler-page-renderer.h>
+#include <poppler-image.h>
+
 namespace AlaaRep::Takeoff {
 
 bool TakeoffParsers::LoadPlanImage(const std::string& filePath, PlanImageData& outImage) {
@@ -23,6 +28,69 @@ bool TakeoffParsers::LoadPlanImage(const std::string& filePath, PlanImageData& o
     outImage.channels = 4;
     outImage.pixels.assign(data, data + (w * h * 4));
     stbi_image_free(data);
+    outImage.isValid = true;
+    return true;
+}
+
+bool TakeoffParsers::RenderPdfToImage(const std::string& pdfFilePath, int dpi, PlanImageData& outImage) {
+    auto doc = poppler::document::load_from_file(pdfFilePath);
+    if (!doc || doc->pages() == 0) {
+        std::cerr << "[TakeoffParsers] Failed to load PDF or PDF has 0 pages: " << pdfFilePath << std::endl;
+        outImage.isValid = false;
+        return false;
+    }
+
+    auto page = doc->create_page(0); // Render first page
+    if (!page) {
+        delete doc;
+        return false;
+    }
+
+    poppler::page_renderer renderer;
+    renderer.set_render_hint(poppler::page_renderer::antialiasing, true);
+    renderer.set_render_hint(poppler::page_renderer::text_antialiasing, true);
+
+    int renderDpi = (dpi > 0) ? dpi : 150;
+    auto img = renderer.render_page(page, renderDpi, renderDpi);
+
+    delete page;
+    delete doc;
+
+    if (!img.is_valid()) {
+        std::cerr << "[TakeoffParsers] Poppler failed to render PDF page.\n";
+        outImage.isValid = false;
+        return false;
+    }
+
+    int w = img.width();
+    int h = img.height();
+    outImage.width = w;
+    outImage.height = h;
+    outImage.channels = 4;
+    outImage.pixels.resize(w * h * 4);
+
+    const char* srcData = img.const_data();
+    int bytesPerLine = img.bytes_per_row();
+
+    // Convert poppler image format (ARGB / RGB) to standard RGBA
+    for (int y = 0; y < h; ++y) {
+        const uint32_t* srcRow = reinterpret_cast<const uint32_t*>(srcData + y * bytesPerLine);
+        for (int x = 0; x < w; ++x) {
+            uint32_t pixel = srcRow[x];
+            // Poppler format is typically format_argb32 (B, G, R, A in little-endian)
+            uint8_t b = (pixel & 0x000000FF);
+            uint8_t g = (pixel & 0x0000FF00) >> 8;
+            uint8_t r = (pixel & 0x00FF0000) >> 16;
+            uint8_t a = (pixel & 0xFF000000) >> 24;
+
+            int dstIdx = (y * w + x) * 4;
+            outImage.pixels[dstIdx + 0] = r;
+            outImage.pixels[dstIdx + 1] = g;
+            outImage.pixels[dstIdx + 2] = b;
+            outImage.pixels[dstIdx + 3] = (a == 0 ? 255 : a); // Ensure opaque background
+        }
+    }
+
     outImage.isValid = true;
     return true;
 }
@@ -115,12 +183,13 @@ bool TakeoffParsers::ReadBluebeamCsv(const std::string& csvContentOrPath, std::v
     return !outObjects.empty();
 }
 
-bool TakeoffParsers::ReadDxf(const std::string& dxfFilePath, DrawingDocument& outDoc) {
+bool TakeoffParsers::ReadDxf(const std::string& dxfFilePath, DrawingDocument& outDoc, double maxEntities) {
     std::ifstream file(dxfFilePath);
     if (!file.is_open()) return false;
 
     outDoc.fileName = dxfFilePath;
     outDoc.fileType = "DXF";
+    size_t entityCount = 0;
 
     std::string code, value;
     bool inEntities = false;
@@ -142,6 +211,22 @@ bool TakeoffParsers::ReadDxf(const std::string& dxfFilePath, DrawingDocument& ou
             continue;
         }
         if (code == "0" && value == "ENDSEC" && inEntities) {
+            // Save last active entity before ending section
+            if (currentEntity == "LINE") {
+                DrawingEntity ent;
+                ent.type = DrawingEntityType::Line;
+                ent.layer = currentLayer;
+                ent.points = { Point2D(x1, y1), Point2D(x2, y2) };
+                outDoc.entities.push_back(ent);
+                entityCount++;
+            } else if (currentEntity == "LWPOLYLINE" && polyPoints.size() >= 2) {
+                DrawingEntity ent;
+                ent.type = DrawingEntityType::Polyline;
+                ent.layer = currentLayer;
+                ent.points = polyPoints;
+                outDoc.entities.push_back(ent);
+                entityCount++;
+            }
             inEntities = false;
             break;
         }
@@ -155,12 +240,18 @@ bool TakeoffParsers::ReadDxf(const std::string& dxfFilePath, DrawingDocument& ou
                     ent.layer = currentLayer;
                     ent.points = { Point2D(x1, y1), Point2D(x2, y2) };
                     outDoc.entities.push_back(ent);
+                    entityCount++;
                 } else if (currentEntity == "LWPOLYLINE" && polyPoints.size() >= 2) {
                     DrawingEntity ent;
                     ent.type = DrawingEntityType::Polyline;
                     ent.layer = currentLayer;
                     ent.points = polyPoints;
                     outDoc.entities.push_back(ent);
+                    entityCount++;
+                }
+
+                if (entityCount >= maxEntities) {
+                    break;
                 }
 
                 currentEntity = value;

@@ -98,6 +98,68 @@ double TakeoffEngine::CalculatePolylineLengthInZone(const std::vector<Point2D>& 
     return insideTotal;
 }
 
+static bool IsInsideEdge(Point2D p, Point2D a, Point2D b) {
+    return ((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) >= -EPSILON;
+}
+
+static Point2D Intersection(Point2D s, Point2D e, Point2D cp1, Point2D cp2) {
+    double dcX = cp1.x - cp2.x;
+    double dcY = cp1.y - cp2.y;
+    double dpX = s.x - e.x;
+    double dpY = s.y - e.y;
+
+    double n1 = cp1.x * cp2.y - cp1.y * cp2.x;
+    double n2 = s.x * e.y - s.y * e.x;
+    double n3 = 1.0 / (dcX * dpY - dcY * dpX);
+
+    return Point2D((n1 * dpX - n2 * dcX) * n3, (n1 * dpY - n2 * dcY) * n3);
+}
+
+double TakeoffEngine::CalculatePolygonAreaInZone(const std::vector<Point2D>& subjectPoly, const std::vector<Point2D>& zonePoly) {
+    if (subjectPoly.size() < 3 || zonePoly.size() < 3) return 0.0;
+
+    std::vector<Point2D> outputList = subjectPoly;
+    size_t zoneCount = zonePoly.size();
+
+    for (size_t i = 0; i < zoneCount; ++i) {
+        if (outputList.empty()) break;
+
+        Point2D cp1 = zonePoly[i];
+        Point2D cp2 = zonePoly[(i + 1) % zoneCount];
+
+        std::vector<Point2D> inputList = outputList;
+        outputList.clear();
+
+        Point2D s = inputList.back();
+        for (const auto& e : inputList) {
+            if (IsInsideEdge(e, cp1, cp2)) {
+                if (IsInsideEdge(s, cp1, cp2)) {
+                    outputList.push_back(e);
+                } else {
+                    outputList.push_back(Intersection(s, e, cp1, cp2));
+                    outputList.push_back(e);
+                }
+            } else if (IsInsideEdge(s, cp1, cp2)) {
+                outputList.push_back(Intersection(s, e, cp1, cp2));
+            }
+            s = e;
+        }
+    }
+
+    double clippedArea = CalculatePolygonArea(outputList);
+    if (clippedArea > EPSILON) return clippedArea;
+
+    // Fallback: check if subject centroid is inside zone
+    Point2D centroid(0, 0);
+    for (const auto& p : subjectPoly) { centroid.x += p.x; centroid.y += p.y; }
+    centroid.x /= subjectPoly.size(); centroid.y /= subjectPoly.size();
+    if (IsPointInPolygon(centroid, zonePoly)) {
+        return CalculatePolygonArea(subjectPoly);
+    }
+
+    return 0.0;
+}
+
 CppQuantityReport TakeoffEngine::CalculateReport(const DrawingDocument& doc) {
     CppQuantityReport report;
     report.documentTitle = doc.fileName;
@@ -173,14 +235,10 @@ CppQuantityReport TakeoffEngine::CalculateReport(const DrawingDocument& doc) {
                     item.zoneBreakdowns.push_back(zb);
                 }
             } else if (obj.measurementType == MeasurementType::Area) {
-                // Polygon area inside zone
-                Point2D centroid(0, 0);
-                for (const auto& p : obj.points) { centroid.x += p.x; centroid.y += p.y; }
-                if (!obj.points.empty()) { centroid.x /= obj.points.size(); centroid.y /= obj.points.size(); }
-
-                if (IsPointInPolygon(centroid, zone.boundary)) {
-                    zb.area = item.totalArea;
-                    zb.cost = item.totalCost;
+                double areaInZone = CalculatePolygonAreaInZone(obj.points, zone.boundary) * areaScale;
+                if (areaInZone > 1e-4) {
+                    zb.area = areaInZone;
+                    zb.cost = areaInZone * unitCost;
                     item.zoneBreakdowns.push_back(zb);
                 }
             }

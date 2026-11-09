@@ -28,6 +28,10 @@ public:
     Point2D ScreenToDrawing(double screenX, double screenY) const;
     Point2D DrawingToScreen(double drawX, double drawY) const;
 
+    // Interactive shape drawing points
+    std::vector<Point2D> inProgressPoints;
+    std::string activeTool = "Select"; // Select, Length, Area, Zone, Count
+
     GLFWwindow* GetWindow() const { return m_window; }
     double GetZoom() const { return m_zoom; }
 

@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(
     include
+    imgui
     /usr/include
     /usr/include/stb
 )
@@ -13,18 +14,31 @@ include_directories(
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(POPPLER REQUIRED poppler-cpp)
 
 # Common library for engine and parsers
 add_library(takeoff_cpp_core STATIC
     src/TakeoffParsers.cpp
     src/TakeoffEngine.cpp
     src/GLRenderer.cpp
+    imgui/imgui.cpp
+    imgui/imgui_draw.cpp
+    imgui/imgui_tables.cpp
+    imgui/imgui_widgets.cpp
+    imgui/imgui_impl_glfw.cpp
+    imgui/imgui_impl_opengl3.cpp
+)
+
+target_include_directories(takeoff_cpp_core PUBLIC
+    ${POPPLER_INCLUDE_DIRS}
 )
 
 target_link_libraries(takeoff_cpp_core PUBLIC
     OpenGL::GL
     GLEW::GLEW
     glfw
+    ${POPPLER_LIBRARIES}
 )
 
 # Optimize for max speed

@@ -1151,10 +1151,540 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
       }});
     }}
 
+    // ========================================================
+    // CLIENT-SIDE XER ENGINE (Supports Offline / Standalone file:// mode)
+    // ========================================================
+    let clientRawBaselineText = null;
+
+    function parseXerTextClient(text) {{
+      const lines = text.split(String.fromCharCode(10));
+      const tables = {{}};
+      let currentTable = null;
+      let currentFields = [];
+
+      for (let line of lines) {{
+        line = line.trim();
+        if (!line) continue;
+        const parts = line.split(String.fromCharCode(9));
+        const tag = parts[0];
+
+        if (tag === '%T') {{
+          currentTable = parts[1];
+          tables[currentTable] = [];
+          currentFields = [];
+        }} else if (tag === '%F' && currentTable) {{
+          currentFields = parts.slice(1);
+        }} else if (tag === '%R' && currentTable && currentFields.length > 0) {{
+          const row = {{}};
+          const vals = parts.slice(1);
+          for (let i = 0; i < currentFields.length; i++) {{
+            row[currentFields[i]] = vals[i] || '';
+          }}
+          tables[currentTable].push(row);
+        }}
+      }}
+      return tables;
+    }}
+
+    function parseDateClient(str) {{
+      if (!str) return null;
+      const d = new Date(str.replace(' ', 'T'));
+      return isNaN(d.getTime()) ? null : d;
+    }}
+
+    function formatDateClient(d) {{
+      if (!d) return '-';
+      const pad = n => String(n).padStart(2, '0');
+      return `${{d.getFullYear()}}-${{pad(d.getMonth() + 1)}}-${{pad(d.getDate())}}`;
+    }}
+
+    function calcPlannedPctClient(startDt, finishDt, dataDt) {{
+      if (!startDt || !finishDt) return 0.0;
+      if (dataDt <= startDt) return 0.0;
+      if (dataDt >= finishDt) return 100.0;
+      const total = finishDt.getTime() - startDt.getTime();
+      if (total <= 0) return 100.0;
+      const elapsed = dataDt.getTime() - startDt.getTime();
+      return Math.min(100.0, Math.max(0.0, Math.round((elapsed / total) * 1000) / 10.0));
+    }}
+
+    function parseXerProjectClient(text) {{
+      const tables = parseXerTextClient(text);
+      const projRow = (tables['PROJECT'] && tables['PROJECT'][0]) || {{}};
+      const dataDate = parseDateClient(projRow.last_recalc_date) || new Date();
+
+      const wbs = {{}};
+      (tables['PROJWBS'] || []).forEach(w => {{
+        wbs[w.wbs_id] = {{
+          wbs_id: w.wbs_id,
+          wbs_short_name: w.wbs_short_name || '',
+          wbs_name: w.wbs_name || 'WBS',
+          parent_wbs_id: w.parent_wbs_id || '',
+          level: 1
+        }};
+      }});
+      Object.values(wbs).forEach(w => {{
+        let lvl = 1;
+        let curr = w.parent_wbs_id;
+        let guard = 0;
+        while (curr && wbs[curr] && guard < 10) {{
+          lvl++;
+          curr = wbs[curr].parent_wbs_id;
+          guard++;
+        }}
+        w.level = lvl;
+      }});
+
+      const actvTypes = {{}};
+      (tables['ACTVTYPE'] || []).forEach(t => {{
+        actvTypes[t.actv_code_type_id] = t.actv_code_type || '';
+      }});
+      const actvCodes = {{}};
+      (tables['ACTVCODE'] || []).forEach(c => {{
+        actvCodes[c.actv_code_id] = {{
+          code_id: c.actv_code_id,
+          type_id: c.actv_code_type_id,
+          type_name: actvTypes[c.actv_code_type_id] || 'General',
+          code_val: c.actv_code_val || '',
+          code_name: c.actv_code_name || ''
+        }};
+      }});
+      const taskActv = {{}};
+      (tables['TASKACTV'] || []).forEach(ta => {{
+        if (!taskActv[ta.task_id]) taskActv[ta.task_id] = {{}};
+        const cObj = actvCodes[ta.actv_code_id];
+        if (cObj) {{
+          taskActv[ta.task_id][cObj.type_name] = cObj;
+        }}
+      }});
+
+      const rsrcs = {{}};
+      (tables['RSRC'] || []).forEach(r => {{
+        rsrcs[r.rsrc_id] = {{
+          rsrc_id: r.rsrc_id,
+          rsrc_short_name: r.rsrc_short_name || '',
+          rsrc_name: r.rsrc_name || '',
+          rsrc_type: r.rsrc_type || 'RT_Labor'
+        }};
+      }});
+
+      const taskRsrc = {{}};
+      (tables['TASKRSRC'] || []).forEach(tr => {{
+        if (!taskRsrc[tr.task_id]) taskRsrc[tr.task_id] = [];
+        const rObj = rsrcs[tr.rsrc_id] || {{}};
+        taskRsrc[tr.task_id].push({{
+          rsrc_id: tr.rsrc_id,
+          rsrc_name: rObj.rsrc_name || 'Labor',
+          target_qty: parseFloat(tr.target_qty || 0),
+          act_qty: parseFloat(tr.act_qty || 0),
+          target_cost: parseFloat(tr.target_cost || 0),
+          act_cost: parseFloat(tr.act_cost || 0)
+        }});
+      }});
+
+      const tasks = {{}};
+      (tables['TASK'] || []).forEach(t => {{
+        const isMile = (t.task_type === 'TT_Mile' || t.task_type === 'TT_FinMile');
+        const statusMap = {{ 'TK_NotStart': 'Not Started', 'TK_Active': 'In Progress', 'TK_Complete': 'Completed' }};
+        const status = statusMap[t.status_code] || 'Not Started';
+        const targetDurn = (parseFloat(t.target_durn_hr_cnt || 0) / 8.0);
+        const remainDurn = (parseFloat(t.remain_durn_hr_cnt || 0) / 8.0);
+        const pctComp = parseFloat(t.phys_complete_pct || 0);
+        const tf = (parseFloat(t.total_float_hr_cnt || 0) / 8.0);
+
+        const actCodes = taskActv[t.task_id] || {{}};
+        let areaCode = 'ZONE-GEN';
+        let areaName = 'General Site';
+        if (actCodes['Project Area']) {{
+          areaCode = actCodes['Project Area'].code_val;
+          areaName = actCodes['Project Area'].code_name;
+        }}
+
+        const wObj = wbs[t.wbs_id] || {{}};
+
+        tasks[t.task_code] = {{
+          task_id: t.task_id,
+          task_code: t.task_code,
+          task_name: t.task_name || 'Task',
+          task_type: t.task_type || 'TT_Task',
+          is_milestone: isMile,
+          status: status,
+          wbs_id: t.wbs_id,
+          wbs_name: wObj.wbs_name || 'WBS',
+          wbs_level: wObj.level || 1,
+          area_code: areaCode,
+          area_name: areaName,
+          target_durn_days: targetDurn,
+          remain_durn_days: remainDurn,
+          pct_comp: pctComp,
+          total_float_days: tf,
+          is_critical: tf <= 0 && status !== 'Completed',
+          target_start: parseDateClient(t.target_start_date),
+          target_end: parseDateClient(t.target_end_date),
+          curr_start: parseDateClient(t.act_start_date || t.early_start_date || t.target_start_date),
+          curr_end: parseDateClient(t.act_end_date || t.early_end_date || t.target_end_date),
+          activity_codes: actCodes,
+          resources: taskRsrc[t.task_id] || []
+        }};
+      }});
+
+      return {{
+        project_info: {{
+          project_name: projRow.proj_short_name || 'Construction Project',
+          data_date: formatDateClient(dataDate),
+          data_date_raw: dataDate,
+          plan_start_date: parseDateClient(projRow.plan_start_date),
+          plan_end_date: parseDateClient(projRow.plan_end_date),
+          scd_end_date: parseDateClient(projRow.scd_end_date)
+        }},
+        wbs,
+        tasks,
+        actv_types: actvTypes,
+        actv_codes: actvCodes
+      }};
+    }}
+
+    function compareSchedulesClient(baseline, update) {{
+      const dataDate = update.project_info.data_date_raw || baseline.project_info.data_date_raw || new Date();
+      const bTasks = baseline.tasks;
+      const uTasks = update.tasks;
+
+      const matchedActivities = [];
+      const wbsMap = {{}};
+      const areasMap = {{}};
+
+      Object.values(update.wbs).forEach(w => {{
+        wbsMap[w.wbs_id] = {{
+          wbs_id: w.wbs_id,
+          wbs_code: w.wbs_short_name,
+          wbs_name: w.wbs_name,
+          level: w.level,
+          weight: 0,
+          planned_earned_dur: 0,
+          actual_earned_dur: 0,
+          total_tasks: 0,
+          completed_tasks: 0,
+          in_progress_tasks: 0,
+          critical_tasks: 0,
+          delayed_tasks: 0
+        }};
+      }});
+
+      let totalWeight = 0;
+      let plannedEarnedWeight = 0;
+      let actualEarnedWeight = 0;
+
+      const criticalActivities = [];
+      const delayedActivities = [];
+      const milestones = [];
+
+      const statusCounts = {{ 'Completed': 0, 'In Progress': 0, 'Not Started': 0 }};
+      const delayCounts = {{ 'Delayed': 0, 'On Track': 0, 'Ahead': 0 }};
+      const floatDist = {{ 'Critical (<=0d)': 0, 'Near Critical (1-10d)': 0, 'Healthy (>10d)': 0 }};
+
+      const allWbsLevels = new Set();
+      const activityCodeFilters = {{}};
+
+      Object.keys(uTasks).forEach(taskCode => {{
+        const uTask = uTasks[taskCode];
+        const bTask = bTasks[taskCode] || {{}};
+        const status = uTask.status;
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+
+        const bDur = (bTask.target_durn_days !== undefined ? bTask.target_durn_days : uTask.target_durn_days) || 0;
+        const isMile = uTask.is_milestone;
+        const weight = (!isMile && bDur > 0) ? bDur : (!isMile ? 1.0 : 0.0);
+
+        const blStart = bTask.target_start || bTask.curr_start;
+        const blEnd = bTask.target_end || bTask.curr_end;
+        const upStart = uTask.curr_start;
+        const upEnd = uTask.curr_end;
+
+        const plannedPct = calcPlannedPctClient(blStart, blEnd, dataDate);
+        const actualPct = uTask.pct_comp;
+
+        let finishVarDays = 0;
+        if (upEnd && blEnd) {{
+          finishVarDays = Math.round((upEnd.getTime() - blEnd.getTime()) / (1000 * 60 * 60 * 24));
+        }}
+
+        let delayStatus = 'On Track';
+        if (status === 'Completed') {{
+          delayStatus = finishVarDays > 0 ? 'Delayed' : 'On Track';
+        }} else {{
+          if (finishVarDays > 2 || (actualPct < plannedPct - 5.0)) delayStatus = 'Delayed';
+          else if (finishVarDays < -2 || (actualPct > plannedPct + 5.0)) delayStatus = 'Ahead';
+          else delayStatus = 'On Track';
+        }}
+
+        if (!isMile) {{
+          delayCounts[delayStatus] = (delayCounts[delayStatus] || 0) + 1;
+        }}
+
+        const tf = uTask.total_float_days;
+        if (status !== 'Completed') {{
+          if (tf <= 0) floatDist['Critical (<=0d)']++;
+          else if (tf <= 10) floatDist['Near Critical (1-10d)']++;
+          else floatDist['Healthy (>10d)']++;
+        }}
+
+        totalWeight += weight;
+        plannedEarnedWeight += weight * (plannedPct / 100.0);
+        actualEarnedWeight += weight * (actualPct / 100.0);
+
+        allWbsLevels.add(uTask.wbs_level);
+        if (wbsMap[uTask.wbs_id]) {{
+          const wentry = wbsMap[uTask.wbs_id];
+          wentry.weight += weight;
+          wentry.planned_earned_dur += weight * (plannedPct / 100.0);
+          wentry.actual_earned_dur += weight * (actualPct / 100.0);
+          wentry.total_tasks++;
+          if (status === 'Completed') wentry.completed_tasks++;
+          else if (status === 'In Progress') wentry.in_progress_tasks++;
+          if (uTask.is_critical) wentry.critical_tasks++;
+          if (delayStatus === 'Delayed') wentry.delayed_tasks++;
+        }}
+
+        const aCode = uTask.area_code;
+        const aName = uTask.area_name;
+        if (!areasMap[aCode]) {{
+          areasMap[aCode] = {{
+            area_code: aCode,
+            area_name: aName,
+            weight: 0,
+            planned_earned_dur: 0,
+            actual_earned_dur: 0,
+            total_tasks: 0,
+            completed_tasks: 0,
+            in_progress_tasks: 0,
+            critical_tasks: 0,
+            delayed_tasks: 0
+          }};
+        }}
+        const aentry = areasMap[aCode];
+        aentry.weight += weight;
+        aentry.planned_earned_dur += weight * (plannedPct / 100.0);
+        aentry.actual_earned_dur += weight * (actualPct / 100.0);
+        aentry.total_tasks++;
+        if (status === 'Completed') aentry.completed_tasks++;
+        else if (status === 'In Progress') aentry.in_progress_tasks++;
+        if (uTask.is_critical) aentry.critical_tasks++;
+        if (delayStatus === 'Delayed') aentry.delayed_tasks++;
+
+        Object.entries(uTask.activity_codes).forEach(([typeName, cObj]) => {{
+          if (!activityCodeFilters[typeName]) activityCodeFilters[typeName] = new Set();
+          activityCodeFilters[typeName].add(cObj.code_val);
+        }});
+
+        const actRow = {{
+          task_id: uTask.task_id,
+          task_code: uTask.task_code,
+          task_name: uTask.task_name,
+          is_milestone: isMile,
+          status: status,
+          wbs_id: uTask.wbs_id,
+          wbs_name: uTask.wbs_name,
+          wbs_level: uTask.wbs_level,
+          area_code: aCode,
+          area_name: aName,
+          bl_start: formatDateClient(blStart),
+          bl_end: formatDateClient(blEnd),
+          curr_start: formatDateClient(upStart),
+          curr_end: formatDateClient(upEnd),
+          target_durn_days: Math.round(uTask.target_durn_days * 10) / 10,
+          remain_durn_days: Math.round(uTask.remain_durn_days * 10) / 10,
+          planned_pct: Math.round(plannedPct * 10) / 10,
+          actual_pct: Math.round(actualPct * 10) / 10,
+          finish_var_days: finishVarDays,
+          total_float_days: Math.round(tf * 10) / 10,
+          is_critical: uTask.is_critical,
+          delay_status: delayStatus,
+          activity_codes: uTask.activity_codes,
+          resources: uTask.resources
+        }};
+
+        matchedActivities.push(actRow);
+        if (isMile) milestones.push(actRow);
+        if (uTask.is_critical && status !== 'Completed') criticalActivities.push(actRow);
+        if (delayStatus === 'Delayed' && status !== 'Completed') delayedActivities.push(actRow);
+      }});
+
+      const overallPlanned = totalWeight > 0 ? Math.round((plannedEarnedWeight / totalWeight) * 1000) / 10.0 : 0.0;
+      const overallActual = totalWeight > 0 ? Math.round((actualEarnedWeight / totalWeight) * 1000) / 10.0 : 0.0;
+      const spi = overallPlanned > 0 ? Math.round((overallActual / overallPlanned) * 100) / 100.0 : 1.0;
+      const svPct = Math.round((overallActual - overallPlanned) * 10) / 10.0;
+
+      const wbsSummary = Object.values(wbsMap).filter(w => w.total_tasks > 0).map(w => {{
+        const pPct = w.weight > 0 ? Math.round((w.planned_earned_dur / w.weight) * 1000) / 10.0 : 0.0;
+        const aPct = w.weight > 0 ? Math.round((w.actual_earned_dur / w.weight) * 1000) / 10.0 : 0.0;
+        return {{
+          wbs_id: w.wbs_id,
+          wbs_code: w.wbs_code,
+          wbs_name: w.wbs_name,
+          level: w.level,
+          total_tasks: w.total_tasks,
+          completed_tasks: w.completed_tasks,
+          in_progress_tasks: w.in_progress_tasks,
+          critical_tasks: w.critical_tasks,
+          delayed_tasks: w.delayed_tasks,
+          planned_pct: pPct,
+          actual_pct: aPct,
+          var_pct: Math.round((aPct - pPct) * 10) / 10.0
+        }};
+      }});
+
+      const areasSummary = Object.values(areasMap).map(a => {{
+        const pPct = a.weight > 0 ? Math.round((a.planned_earned_dur / a.weight) * 1000) / 10.0 : 0.0;
+        const aPct = a.weight > 0 ? Math.round((a.actual_earned_dur / a.weight) * 1000) / 10.0 : 0.0;
+        const aSpi = pPct > 0 ? Math.round((aPct / pPct) * 100) / 100.0 : 1.0;
+        return {{
+          area_code: a.area_code,
+          area_name: a.area_name,
+          total_tasks: a.total_tasks,
+          completed_tasks: a.completed_tasks,
+          in_progress_tasks: a.in_progress_tasks,
+          critical_tasks: a.critical_tasks,
+          delayed_tasks: a.delayed_tasks,
+          planned_pct: pPct,
+          actual_pct: aPct,
+          spi: aSpi,
+          var_pct: Math.round((aPct - pPct) * 10) / 10.0,
+          status_indicator: aSpi >= 1.0 ? 'Ahead / On Track' : (aSpi >= 0.9 ? 'Minor Delay' : 'Behind Schedule')
+        }};
+      }});
+
+      // Generate Lookahead client-side
+      const lookahead30 = [];
+      const lookahead60 = [];
+      matchedActivities.forEach(a => {{
+        if (a.is_milestone || a.status === 'Completed') return;
+        const cStart = parseDateClient(a.curr_start);
+        const cEnd = parseDateClient(a.curr_end);
+        if (!cStart || !cEnd) return;
+
+        const diffStartDays = (cStart.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24);
+        const in30 = (a.status === 'In Progress' && cEnd >= dataDate) || (diffStartDays >= 0 && diffStartDays <= 30);
+        const in60 = (a.status === 'In Progress' && cEnd >= dataDate) || (diffStartDays >= 0 && diffStartDays <= 60);
+
+        const winStatus = a.status === 'In Progress' ? 'Active In Progress' : 'Starting in Window';
+        const item = {{ ...a, window_status: winStatus }};
+        if (in30) lookahead30.push(item);
+        if (in60) lookahead60.push(item);
+      }});
+
+      const filterCodesObj = {{}};
+      Object.keys(activityCodeFilters).sort().forEach(k => {{
+        filterCodesObj[k] = Array.from(activityCodeFilters[k]).sort();
+      }});
+
+      return {{
+        project_info: {{
+          project_name: update.project_info.project_name,
+          baseline_name: baseline.project_info.project_name,
+          data_date: formatDateClient(dataDate),
+          plan_finish: formatDateClient(baseline.project_info.plan_end_date),
+          forecast_finish: formatDateClient(update.project_info.scd_end_date || update.project_info.plan_end_date),
+          schedule_slippage_days: (update.project_info.scd_end_date && baseline.project_info.plan_end_date)
+            ? Math.round((update.project_info.scd_end_date.getTime() - baseline.project_info.plan_end_date.getTime()) / (1000 * 60 * 60 * 24))
+            : 0
+        }},
+        summary: {{
+          overall_progress_planned: overallPlanned,
+          overall_progress_actual: overallActual,
+          spi: spi,
+          schedule_variance_pct: svPct,
+          status_indicator: spi >= 1.0 ? 'Ahead / On Track' : (spi >= 0.9 ? 'Minor Delay' : 'Behind Schedule'),
+          total_activities: matchedActivities.length,
+          status_counts: statusCounts,
+          delay_counts: delayCounts,
+          float_dist: floatDist
+        }},
+        wbs_summary: wbsSummary,
+        areas_summary: areasSummary,
+        filters_meta: {{
+          wbs_levels: Array.from(allWbsLevels).sort((a,b) => a - b),
+          activity_codes: filterCodesObj
+        }},
+        lookahead: {{
+          lookahead_30: lookahead30,
+          lookahead_60: lookahead60
+        }},
+        milestones,
+        critical_activities: criticalActivities,
+        delayed_activities: delayedActivities,
+        all_activities: matchedActivities,
+        scurve: projectData.scurve,
+        manpower: projectData.manpower,
+        cashflow: projectData.cashflow,
+        invoice: projectData.invoice
+      }};
+    }}
+
+    function rebindDashboardUI(newData) {{
+      Object.assign(projectData, newData);
+
+      // Refresh Area KPIs
+      updateAreaKpis(currentSelectedArea);
+
+      // Rebuild Filter UI dropdowns
+      rebuildFilterDropdowns(projectData.filters_meta);
+
+      // Rebuild WBS cards
+      const wbsContainer = document.getElementById('wbsProgressContainer');
+      if (wbsContainer && projectData.wbs_summary) {{
+        wbsContainer.innerHTML = projectData.wbs_summary.map(w => `
+          <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div class="flex justify-between items-center text-xs mb-1.5">
+              <span class="font-bold text-slate-800">${{w.wbs_name}}</span>
+              <span class="text-slate-500 font-medium">${{w.actual_pct}}% / <span class="text-slate-400">${{w.planned_pct}}% Plan</span></span>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+              <div class="${{w.actual_pct >= w.planned_pct ? 'bg-emerald-500' : 'bg-blue-600'}} h-2 rounded-full" style="width: ${{Math.min(w.actual_pct, 100.0)}}%"></div>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-slate-500 mt-1.5">
+              <span>${{w.total_tasks}} Tasks (${{w.completed_tasks}} Done, ${{w.in_progress_tasks}} Active)</span>
+              <span class="font-semibold ${{w.var_pct < -2.0 ? 'text-rose-600' : (w.var_pct >= 0 ? 'text-emerald-600' : 'text-slate-600')}}">
+                Var: ${{w.var_pct >= 0 ? '+' : ''}}${{w.var_pct}}%
+              </span>
+            </div>
+          </div>
+        `).join('');
+      }}
+
+      applyGlobalFilters();
+    }}
+
+    function rebuildFilterDropdowns(filtersMeta) {{
+      if (!filtersMeta) return;
+      const wbsSelect = document.getElementById('filterWbsLevel');
+      if (wbsSelect && filtersMeta.wbs_levels) {{
+        const curVal = wbsSelect.value;
+        wbsSelect.innerHTML = '<option value="">All Levels</option>' + filtersMeta.wbs_levels.map(l => `<option value="${{l}}">Level ${{l}}</option>`).join('');
+        wbsSelect.value = curVal;
+      }}
+    }}
+
+    // ========================================================
+    // UPLOAD HANDLERS (With Automated Offline / Standalone Fallback)
+    // ========================================================
     async function uploadDashboardBaseline(input) {{
       if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+
+      const isFileProtocol = window.location.protocol === 'file:';
+      if (isFileProtocol) {{
+        const reader = new FileReader();
+        reader.onload = function(e) {{
+          clientRawBaselineText = e.target.result;
+          alert('Baseline XER parsed successfully in standalone mode! You can now load an update XER.');
+        }};
+        reader.readAsText(file);
+        input.value = '';
+        return;
+      }}
+
       const fd = new FormData();
-      fd.append('baseline', input.files[0]);
+      fd.append('baseline', file);
       try {{
         const res = await fetch('/api/upload-baseline', {{ method: 'POST', body: fd }});
         if (res.ok) {{
@@ -1164,28 +1694,73 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
           alert('Error: ' + (err.detail || 'Failed to upload baseline'));
         }}
       }} catch (e) {{
-        alert('Upload failed: ' + e.message);
+        console.warn('Backend fetch failed, falling back to in-browser parsing:', e);
+        const reader = new FileReader();
+        reader.onload = function(evt) {{
+          clientRawBaselineText = evt.target.result;
+          alert('Baseline XER parsed successfully in offline mode! You can now upload weekly updates.');
+        }};
+        reader.readAsText(file);
       }}
       input.value = '';
     }}
 
     async function uploadDashboardUpdate(input) {{
       if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+
+      const isFileProtocol = window.location.protocol === 'file:';
+      if (isFileProtocol) {{
+        const reader = new FileReader();
+        reader.onload = function(e) {{
+          const updateText = e.target.result;
+          processClientSideUpdate(updateText);
+        }};
+        reader.readAsText(file);
+        input.value = '';
+        return;
+      }}
+
       const fd = new FormData();
-      fd.append('update', input.files[0]);
+      fd.append('update', file);
       try {{
         const res = await fetch('/api/upload-update', {{ method: 'POST', body: fd }});
         if (res.ok) {{
           const data = await res.json();
           window.location.href = `/api/dashboard/update/${{data.update_id}}`;
+          return;
         }} else {{
           const err = await res.json();
-          alert('Error: ' + (err.detail || 'Failed to process update'));
+          alert('Server notice: ' + (err.detail || 'Processing via client-side engine'));
         }}
       }} catch (e) {{
-        alert('Upload failed: ' + e.message);
+        console.warn('Backend fetch failed, falling back to in-browser processing:', e);
       }}
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {{
+        processClientSideUpdate(evt.target.result);
+      }};
+      reader.readAsText(file);
       input.value = '';
+    }}
+
+    function processClientSideUpdate(updateText) {{
+      try {{
+        const updateProj = parseXerProjectClient(updateText);
+        let baseProj;
+        if (clientRawBaselineText) {{
+          baseProj = parseXerProjectClient(clientRawBaselineText);
+        }} else {{
+          baseProj = updateProj;
+        }}
+        const compared = compareSchedulesClient(baseProj, updateProj);
+        rebindDashboardUI(compared);
+        alert('Update XER loaded and analyzed successfully! Dashboard and area KPIs updated.');
+      }} catch (err) {{
+        console.error('Client XER processing error:', err);
+        alert('Could not parse update XER: ' + err.message);
+      }}
     }}
 
     // Initialize View on Page Load

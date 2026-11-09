@@ -159,6 +159,13 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
           </svg>
           <span>Invoice & Billing (IPC)</span>
         </button>
+
+        <button onclick="switchView('fourd')" id="nav-fourd" class="nav-link w-full flex items-center px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition">
+          <svg class="w-5 h-5 mr-3 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          <span>4D Modeling</span>
+        </button>
       </nav>
 
       <!-- Sidebar Quick Controls: Load Custom Layout & Upload XER -->
@@ -737,6 +744,279 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
         </div>
       </div>
 
+      <!-- ========================================== -->
+      <!-- VIEW 6: 4D MODELING & TIMELINE SLIDER -->
+      <!-- ========================================== -->
+      <div id="view-fourd" class="view-panel hidden space-y-6">
+
+        <!-- Top Timeline Slipper / Slider Bar Controls Card -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-cyan-100 text-cyan-700 font-bold text-xs">4D</span>
+                <h3 class="text-base font-bold text-slate-900">4D Construction Timeline Simulation</h3>
+              </div>
+              <p class="text-xs text-slate-500 mt-0.5">Scrub the timeline slider to simulate architectural building progression, activity sequences, and tile status over time.</p>
+            </div>
+
+            <!-- Date & Progress Live Badge -->
+            <div class="flex items-center gap-3">
+              <div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-right">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Simulation Date</div>
+                <div id="fourdSimDateBadge" class="text-base font-extrabold font-mono text-cyan-700">2024-01-08</div>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-right">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Cumulative Progress</div>
+                <div id="fourdSimPctBadge" class="text-base font-extrabold font-mono text-blue-600">0.0%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Timeline Tile Slipper Bar / Slider Component -->
+          <div class="bg-slate-900 rounded-xl p-4 text-white shadow-inner">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono mb-2">
+              <span id="fourdStartDateLabel">Start: 2024-01-08</span>
+              <span class="text-cyan-400 font-semibold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                <span>Time Slipper Bar</span>
+              </span>
+              <span id="fourdEndDateLabel">Target Finish: 2024-11-15</span>
+            </div>
+
+            <!-- Range Slider -->
+            <div class="relative flex items-center py-2">
+              <input type="range" id="fourdTimelineSlider" min="0" max="100" value="0" step="1"
+                class="w-full h-3 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                oninput="onFourdSliderChange(this.value)">
+            </div>
+
+            <!-- Playback Controls -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 mt-2 border-t border-slate-800 text-xs">
+              <div class="flex items-center gap-2">
+                <button id="fourdBtnPlay" onclick="toggleFourdPlay()" class="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition shadow-xs">
+                  <svg id="fourdPlayIcon" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"/></svg>
+                  <span id="fourdPlayText">Play Simulation</span>
+                </button>
+                <button onclick="stepFourdSlider(-1)" title="Previous Step" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg transition border border-slate-700">
+                  &#9664;
+                </button>
+                <button onclick="stepFourdSlider(1)" title="Next Step" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg transition border border-slate-700">
+                  &#9654;
+                </button>
+                <button onclick="resetFourdTimeline()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition border border-slate-700 text-[11px]">
+                  Reset to Start
+                </button>
+                <button onclick="jumpFourdToCutoff()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 rounded-lg transition border border-slate-700 text-[11px]">
+                  Jump to Data Date
+                </button>
+              </div>
+
+              <!-- Speed multi toggles -->
+              <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
+                <span class="text-[10px] text-slate-400 px-2 uppercase font-semibold">Speed:</span>
+                <button onclick="setFourdSpeed(1)" id="fourdSpeed1" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-500 text-slate-950">1x</button>
+                <button onclick="setFourdSpeed(2)" id="fourdSpeed2" class="px-2 py-0.5 rounded text-[11px] font-bold text-slate-400 hover:text-white">2x</button>
+                <button onclick="setFourdSpeed(5)" id="fourdSpeed5" class="px-2 py-0.5 rounded text-[11px] font-bold text-slate-400 hover:text-white">5x</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4D Modeling Viewport & Status Panel (2-column layout) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- Interactive 4D Isometric BIM Viewport (2 cols) -->
+          <div class="lg:col-span-2 bg-slate-950 rounded-2xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div>
+                <span class="text-xs font-bold uppercase tracking-wider text-cyan-400">4D BIM Model Viewport</span>
+                <h4 class="text-sm font-semibold text-white">Project Structural Zones & Architectural Elements</h4>
+              </div>
+
+              <!-- Status Legend -->
+              <div class="flex items-center flex-wrap gap-2 text-[10px] font-semibold">
+                <span class="flex items-center gap-1 text-slate-400"><span class="w-2.5 h-2.5 rounded bg-slate-700 border border-slate-600"></span> Unstarted</span>
+                <span class="flex items-center gap-1 text-amber-400"><span class="w-2.5 h-2.5 rounded bg-amber-500"></span> In Progress</span>
+                <span class="flex items-center gap-1 text-emerald-400"><span class="w-2.5 h-2.5 rounded bg-emerald-500"></span> Completed</span>
+                <span class="flex items-center gap-1 text-rose-400"><span class="w-2.5 h-2.5 rounded bg-rose-500"></span> Delayed / Critical</span>
+              </div>
+            </div>
+
+            <!-- 4D Isometric SVG Model Canvas -->
+            <div class="relative w-full aspect-[16/10] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center p-4">
+              <svg id="fourdModelSvg" viewBox="0 0 900 550" class="w-full h-full select-none" style="filter: drop-shadow(0 10px 25px rgba(0,0,0,0.6));">
+                <defs>
+                  <linearGradient id="gridGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#0f172a" />
+                    <stop offset="100%" stop-color="#020617" />
+                  </linearGradient>
+                  <filter id="tileGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+
+                <!-- Ground Grid Plane -->
+                <g class="ground-grid" opacity="0.4">
+                  <path d="M 150 420 L 450 530 L 750 420 L 450 310 Z" fill="url(#gridGrad)" stroke="#1e293b" stroke-width="2"/>
+                  <line x1="250" y1="383" x2="550" y2="493" stroke="#1e293b" stroke-width="1"/>
+                  <line x1="350" y1="347" x2="650" y2="457" stroke="#1e293b" stroke-width="1"/>
+                  <line x1="550" y1="347" x2="250" y2="457" stroke="#1e293b" stroke-width="1"/>
+                  <line x1="650" y1="383" x2="350" y2="493" stroke="#1e293b" stroke-width="1"/>
+                </g>
+
+                <!-- Zone 1: Site Infrastructure & Logistics (Surrounding apron) -->
+                <g id="fourdTile-ZONE-SITE" class="fourd-tile cursor-pointer transition-all duration-300" onclick="selectFourdTile('ZONE-SITE', 'Site Works & Infrastructure')">
+                  <!-- Base Plate Outer -->
+                  <polygon points="120,410 450,540 780,410 450,280" fill="#1e293b" stroke="#334155" stroke-width="2" class="tile-face base-plane" opacity="0.6"/>
+                  <text x="210" y="470" fill="#94a3b8" font-size="11" font-weight="bold" font-family="monospace">ZONE-SITE (Infrastructure)</text>
+                </g>
+
+                <!-- Zone 2: Substructure & Foundation (Below ground slab & piles) -->
+                <g id="fourdTile-ZONE-SUB" class="fourd-tile cursor-pointer transition-all duration-300" onclick="selectFourdTile('ZONE-SUB', 'Substructure & Foundation')">
+                  <!-- Isometric Box for Foundation Block -->
+                  <!-- Top Face -->
+                  <polygon points="310,360 450,410 590,360 450,310" fill="#334155" stroke="#475569" stroke-width="2" class="tile-top"/>
+                  <!-- Left Face -->
+                  <polygon points="310,360 450,410 450,440 310,390" fill="#1e293b" stroke="#475569" stroke-width="2" class="tile-left"/>
+                  <!-- Right Face -->
+                  <polygon points="450,410 590,360 590,390 450,440" fill="#0f172a" stroke="#475569" stroke-width="2" class="tile-right"/>
+                  <text x="450" y="380" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">SUBSTRUCTURE</text>
+                  <text x="450" y="396" fill="#cbd5e1" font-size="10" text-anchor="middle" font-family="monospace">Piles, Raft & Retaining</text>
+                </g>
+
+                <!-- Zone 3: Superstructure Podium / Tower Level 1-3 -->
+                <g id="fourdTile-ZONE-TOW-L1" class="fourd-tile cursor-pointer transition-all duration-300" onclick="selectFourdTile('ZONE-TOW', 'Superstructure Tower Core')">
+                  <polygon points="330,300 450,345 570,300 450,255" fill="#334155" stroke="#475569" stroke-width="2" class="tile-top"/>
+                  <polygon points="330,300 450,345 450,375 330,330" fill="#1e293b" stroke="#475569" stroke-width="2" class="tile-left"/>
+                  <polygon points="450,345 570,300 570,330 450,375" fill="#0f172a" stroke="#475569" stroke-width="2" class="tile-right"/>
+                  <text x="450" y="315" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">TOWER FRAMING L1-L3</text>
+                </g>
+
+                <!-- Zone 4: Superstructure High-Rise Floors & Roof -->
+                <g id="fourdTile-ZONE-TOW" class="fourd-tile cursor-pointer transition-all duration-300" onclick="selectFourdTile('ZONE-TOW', 'Superstructure Tower Core')">
+                  <polygon points="350,230 450,270 550,230 450,190" fill="#334155" stroke="#475569" stroke-width="2" class="tile-top"/>
+                  <polygon points="350,230 450,270 450,295 350,255" fill="#1e293b" stroke="#475569" stroke-width="2" class="tile-left"/>
+                  <polygon points="450,270 550,230 550,255 450,295" fill="#0f172a" stroke="#475569" stroke-width="2" class="tile-right"/>
+                  <text x="450" y="240" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">ROOF SLAB & TOPPING</text>
+                </g>
+
+                <!-- Zone 5: Central MEP Plant & Risers (Core block right) -->
+                <g id="fourdTile-ZONE-MEP" class="fourd-tile cursor-pointer transition-all duration-300" onclick="selectFourdTile('ZONE-MEP', 'Central MEP Plant')">
+                  <polygon points="575,280 675,320 675,270 575,230" fill="#1e293b" stroke="#475569" stroke-width="2" class="tile-left"/>
+                  <polygon points="675,320 735,295 735,245 675,270" fill="#0f172a" stroke="#475569" stroke-width="2" class="tile-right"/>
+                  <polygon points="575,230 675,270 735,245 635,205" fill="#334155" stroke="#475569" stroke-width="2" class="tile-top"/>
+                  <text x="655" y="250" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">MEP PLANT</text>
+                  <text x="655" y="265" fill="#cbd5e1" font-size="8" text-anchor="middle">HVAC & RISERS</text>
+                </g>
+
+                <!-- Zone 6: Finishes, Curtain Wall & Glazing Envelope (Front-left facade) -->
+                <g id="fourdTile-ZONE-FIN" class="fourd-tile cursor-pointer transition-all duration-300" onclick="selectFourdTile('ZONE-FIN', 'Finishes & Curtain Wall')">
+                  <!-- Glass / Cladding Panels on facade -->
+                  <polygon points="240,290 340,330 340,250 240,210" fill="#1e293b" stroke="#475569" stroke-width="2" class="tile-left" opacity="0.85"/>
+                  <polygon points="340,330 370,315 370,235 340,250" fill="#0f172a" stroke="#475569" stroke-width="2" class="tile-right" opacity="0.85"/>
+                  <polygon points="240,210 340,250 370,235 270,195" fill="#334155" stroke="#475569" stroke-width="2" class="tile-top" opacity="0.85"/>
+                  <text x="305" y="265" fill="#ffffff" font-size="10" font-weight="bold" text-anchor="middle">FACADE & FIN</text>
+                  <text x="305" y="280" fill="#cbd5e1" font-size="8" text-anchor="middle">Curtain Wall</text>
+                </g>
+
+                <!-- Construction Crane Tower on roof/site -->
+                <g class="crane-structure" opacity="0.75">
+                  <line x1="500" y1="190" x2="500" y2="70" stroke="#f59e0b" stroke-width="3"/>
+                  <line x1="430" y1="80" x2="560" y2="80" stroke="#f59e0b" stroke-width="2.5"/>
+                  <line x1="500" y1="70" x2="560" y2="80" stroke="#d97706" stroke-width="1.5"/>
+                  <line x1="500" y1="70" x2="430" y2="80" stroke="#d97706" stroke-width="1.5"/>
+                  <line x1="540" y1="80" x2="540" y2="120" stroke="#f59e0b" stroke-width="1" stroke-dasharray="2 2"/>
+                  <circle cx="540" cy="122" r="3" fill="#f59e0b"/>
+                </g>
+              </svg>
+
+              <!-- Floating Simulation HUD Pill -->
+              <div class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3 py-2 text-xs flex items-center gap-3 text-slate-300">
+                <div>
+                  <span class="text-[10px] text-slate-400 uppercase font-semibold">Stage:</span>
+                  <span id="fourdStageLabel" class="font-bold text-white ml-1">Pre-construction</span>
+                </div>
+                <div class="w-px h-4 bg-slate-700"></div>
+                <div>
+                  <span class="text-[10px] text-slate-400 uppercase font-semibold">Active Tasks:</span>
+                  <span id="fourdActiveTaskCount" class="font-bold text-cyan-400 ml-1">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tile Status Quick Strip -->
+            <div class="grid grid-cols-5 gap-2 mt-4 text-center">
+              <div id="tileCard-ZONE-SUB" class="bg-slate-900 border border-slate-800 rounded-xl p-2 cursor-pointer hover:border-cyan-500/50 transition" onclick="selectFourdTile('ZONE-SUB', 'Substructure')">
+                <div class="text-[10px] font-mono text-slate-400">ZONE-SUB</div>
+                <div id="tilePct-ZONE-SUB" class="text-xs font-bold text-slate-300">0%</div>
+                <div id="tileState-ZONE-SUB" class="text-[9px] uppercase font-semibold text-slate-500">Unstarted</div>
+              </div>
+
+              <div id="tileCard-ZONE-TOW" class="bg-slate-900 border border-slate-800 rounded-xl p-2 cursor-pointer hover:border-cyan-500/50 transition" onclick="selectFourdTile('ZONE-TOW', 'Superstructure')">
+                <div class="text-[10px] font-mono text-slate-400">ZONE-TOW</div>
+                <div id="tilePct-ZONE-TOW" class="text-xs font-bold text-slate-300">0%</div>
+                <div id="tileState-ZONE-TOW" class="text-[9px] uppercase font-semibold text-slate-500">Unstarted</div>
+              </div>
+
+              <div id="tileCard-ZONE-MEP" class="bg-slate-900 border border-slate-800 rounded-xl p-2 cursor-pointer hover:border-cyan-500/50 transition" onclick="selectFourdTile('ZONE-MEP', 'MEP Plant')">
+                <div class="text-[10px] font-mono text-slate-400">ZONE-MEP</div>
+                <div id="tilePct-ZONE-MEP" class="text-xs font-bold text-slate-300">0%</div>
+                <div id="tileState-ZONE-MEP" class="text-[9px] uppercase font-semibold text-slate-500">Unstarted</div>
+              </div>
+
+              <div id="tileCard-ZONE-FIN" class="bg-slate-900 border border-slate-800 rounded-xl p-2 cursor-pointer hover:border-cyan-500/50 transition" onclick="selectFourdTile('ZONE-FIN', 'Finishes & Curtain Wall')">
+                <div class="text-[10px] font-mono text-slate-400">ZONE-FIN</div>
+                <div id="tilePct-ZONE-FIN" class="text-xs font-bold text-slate-300">0%</div>
+                <div id="tileState-ZONE-FIN" class="text-[9px] uppercase font-semibold text-slate-500">Unstarted</div>
+              </div>
+
+              <div id="tileCard-ZONE-SITE" class="bg-slate-900 border border-slate-800 rounded-xl p-2 cursor-pointer hover:border-cyan-500/50 transition" onclick="selectFourdTile('ZONE-SITE', 'Site & Infrastructure')">
+                <div class="text-[10px] font-mono text-slate-400">ZONE-SITE</div>
+                <div id="tilePct-ZONE-SITE" class="text-xs font-bold text-slate-300">0%</div>
+                <div id="tileState-ZONE-SITE" class="text-[9px] uppercase font-semibold text-slate-500">Unstarted</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Construction Activities at Current Timeline Date (1 col) -->
+          <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div>
+                  <h4 class="text-sm font-bold text-slate-900">Active Activities at Date</h4>
+                  <p class="text-xs text-slate-500">Tasks executing during current timeline frame</p>
+                </div>
+                <span id="fourdActiveBadgeCount" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-100 text-cyan-800">0 Tasks</span>
+              </div>
+
+              <!-- Selected Tile Inspector Card -->
+              <div id="fourdSelectedTileBox" class="p-3.5 rounded-xl bg-cyan-50 border border-cyan-100 mb-4">
+                <div class="text-[10px] uppercase font-extrabold text-cyan-700 tracking-wider">Inspected Zone / Tile</div>
+                <div id="fourdSelectedTileName" class="text-sm font-bold text-slate-900 mt-0.5">All Zones (Entire Project)</div>
+                <div class="flex justify-between items-center text-xs text-slate-600 mt-2">
+                  <span>Simulated Earned %:</span>
+                  <span id="fourdSelectedTileProgress" class="font-bold text-cyan-700">0.0%</span>
+                </div>
+              </div>
+
+              <!-- Task List Scroll Area -->
+              <div class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1" id="fourdActiveTasksList">
+                <!-- Dynamically populated by JS simulation engine -->
+              </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100 mt-4 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>XER 4D Engine Synced</span>
+              <button onclick="selectFourdTile(null, 'All Zones (Entire Project)')" class="text-blue-600 font-semibold hover:underline">Reset Selection</button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
     </main>
 
     <!-- Footer -->
@@ -772,7 +1052,8 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
         lookahead: 'Lookahead Schedule Management',
         manpower: 'Manpower & Labor Resources',
         cashflow: 'Cashflow Spend & Cost Curves',
-        invoice: 'Contractor Payment Applications (IPC)'
+        invoice: 'Contractor Payment Applications (IPC)',
+        fourd: '4D Construction Timeline Simulation & Tile Slipper'
       }};
       document.getElementById('viewTitle').innerText = titles[viewName] || 'Construction Dashboard';
 
@@ -781,6 +1062,9 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
       }}
       if (viewName === 'cashflow' && !cashflowChartInstance) {{
         initCashflowChart();
+      }}
+      if (viewName === 'fourd') {{
+        initFourdSimulation();
       }}
     }}
 
@@ -1150,6 +1434,367 @@ def generate_html_dashboard(data: Dict[str, Any]) -> str:
         }}
       }});
     }}
+
+        // ========================================================
+    // 4D MODELING & TIMELINE SLIDER SIMULATION ENGINE
+    // ========================================================
+    let fourdSimTimer = null;
+    let fourdIsPlaying = false;
+    let fourdPlaySpeed = 1; // 1x, 2x, 5x
+    let fourdSimStartDate = null;
+    let fourdSimEndDate = null;
+    let fourdTotalDays = 0;
+    let fourdSelectedZone = null;
+    let fourdCurrentSimDate = null;
+
+    function initFourdSimulation() {{
+      const pInfo = projectData.project_info || {{}};
+      const startStr = pInfo.baseline_start || '2024-01-08';
+      const finishStr = pInfo.forecast_finish || pInfo.baseline_finish || '2024-11-15';
+      fourdSimStartDate = new Date(startStr + 'T00:00:00');
+      fourdSimEndDate = new Date(finishStr + 'T00:00:00');
+
+      document.getElementById('fourdStartDateLabel').innerText = 'Start: ' + startStr;
+      document.getElementById('fourdEndDateLabel').innerText = 'Target Finish: ' + finishStr;
+
+      fourdTotalDays = Math.max(1, Math.round((fourdSimEndDate - fourdSimStartDate) / (1000 * 60 * 60 * 24)));
+      const slider = document.getElementById('fourdTimelineSlider');
+      slider.min = 0;
+      slider.max = fourdTotalDays;
+
+      if (!fourdCurrentSimDate) {{
+        // Jump to data date or start
+        const dataDtStr = pInfo.data_date;
+        if (dataDtStr) {{
+          jumpFourdToCutoff();
+        }} else {{
+          slider.value = 0;
+          onFourdSliderChange(0);
+        }}
+      }} else {{
+        const daysDiff = Math.round((fourdCurrentSimDate - fourdSimStartDate) / (1000 * 60 * 60 * 24));
+        slider.value = Math.max(0, Math.min(daysDiff, fourdTotalDays));
+        onFourdSliderChange(slider.value);
+      }}
+    }}
+
+    function onFourdSliderChange(dayIndex) {{
+      const dIndex = parseInt(dayIndex, 10);
+      if (!fourdSimStartDate) return;
+
+      const simTime = fourdSimStartDate.getTime() + (dIndex * 24 * 60 * 60 * 1000);
+      fourdCurrentSimDate = new Date(simTime);
+
+      const yyyy = fourdCurrentSimDate.getFullYear();
+      const mm = String(fourdCurrentSimDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(fourdCurrentSimDate.getDate()).padStart(2, '0');
+      const dateStr = `${{yyyy}}-${{mm}}-${{dd}}`;
+
+      document.getElementById('fourdSimDateBadge').innerText = dateStr;
+
+      // Update 4D elements status and active activities
+      updateFourdElementsState(fourdCurrentSimDate);
+    }}
+
+    function updateFourdElementsState(currentDate) {{
+      const activities = projectData.all_activities || [];
+      const zones = ['ZONE-SUB', 'ZONE-TOW', 'ZONE-MEP', 'ZONE-FIN', 'ZONE-SITE'];
+      const zoneStats = {{}};
+      zones.forEach(z => {{
+        zoneStats[z] = {{ total: 0, started: 0, completed: 0, active: 0, delayed: 0, sumWeight: 0, earnedWeight: 0 }};
+      }});
+
+      let totalProjectWeight = 0;
+      let earnedProjectWeight = 0;
+      const activeTasksAtDate = [];
+
+      activities.forEach(act => {{
+        const stStr = act.curr_start || act.bl_start;
+        const fnStr = act.curr_end || act.bl_end;
+        if (!stStr || !fnStr) return;
+
+        const st = new Date(stStr + 'T00:00:00');
+        const fn = new Date(fnStr + 'T23:59:59');
+        const durn = Math.max(1, (fn - st) / (1000 * 60 * 60 * 24));
+        const wt = act.weight > 0 ? act.weight : durn;
+        totalProjectWeight += wt;
+
+        const zCode = act.area_code;
+        const zObj = zoneStats[zCode];
+        if (zObj) {{
+          zObj.total++;
+          zObj.sumWeight += wt;
+        }}
+
+        if (currentDate < st) {{
+          // Not started yet
+        }} else if (currentDate >= fn) {{
+          // Completed at this simulation date
+          earnedProjectWeight += wt;
+          if (zObj) {{
+            zObj.completed++;
+            zObj.earnedWeight += wt;
+          }}
+        }} else {{
+          // In progress at this simulation date
+          const elapsed = (currentDate - st) / (1000 * 60 * 60 * 24);
+          const progRatio = Math.min(1.0, Math.max(0.0, elapsed / durn));
+          earnedProjectWeight += (wt * progRatio);
+
+          if (zObj) {{
+            zObj.active++;
+            zObj.started++;
+            zObj.earnedWeight += (wt * progRatio);
+            if (act.is_critical || (act.finish_var_days && act.finish_var_days > 0)) {{
+              zObj.delayed++;
+            }}
+          }}
+
+          activeTasksAtDate.push({{
+            ...act,
+            simPct: Math.round(progRatio * 100),
+            simStatus: 'In Progress'
+          }});
+        }}
+      }});
+
+      const cumPct = totalProjectWeight > 0 ? Math.min(100.0, (earnedProjectWeight / totalProjectWeight) * 100).toFixed(1) : '0.0';
+      document.getElementById('fourdSimPctBadge').innerText = cumPct + '%';
+
+      // Determine Construction Stage Label
+      let stage = 'Pre-construction';
+      const numPct = parseFloat(cumPct);
+      if (numPct >= 95) stage = 'Testing, Commissioning & Handover';
+      else if (numPct >= 65) stage = 'Interior Finishes & Facades';
+      else if (numPct >= 35) stage = 'Superstructure Framing';
+      else if (numPct >= 10) stage = 'Substructure & Underground MEP';
+      else if (numPct > 0) stage = 'Mobilization & Earthwork';
+      document.getElementById('fourdStageLabel').innerText = stage;
+      document.getElementById('fourdActiveTaskCount').innerText = activeTasksAtDate.length;
+      document.getElementById('fourdActiveBadgeCount').innerText = activeTasksAtDate.length + ' Tasks';
+
+      // Update 3D Tile visuals and bottom cards
+      zones.forEach(z => {{
+        const st = zoneStats[z];
+        const pct = st.sumWeight > 0 ? Math.min(100, Math.round((st.earnedWeight / st.sumWeight) * 100)) : 0;
+        let colorStatus = 'unstarted'; // unstarted, progress, complete, delayed
+
+        if (pct >= 100 || (st.total > 0 && st.completed === st.total)) {{
+          colorStatus = 'complete';
+        }} else if (st.delayed > 0) {{
+          colorStatus = 'delayed';
+        }} else if (st.active > 0 || pct > 0) {{
+          colorStatus = 'progress';
+        }}
+
+        // Color palettes
+        const colors = {{
+          unstarted: {{ top: '#334155', left: '#1e293b', right: '#0f172a', stroke: '#475569', opacity: 0.35, textClass: 'text-slate-500' }},
+          progress: {{ top: '#0284c7', left: '#0369a1', right: '#075985', stroke: '#38bdf8', opacity: 0.95, textClass: 'text-cyan-400' }},
+          complete: {{ top: '#059669', left: '#047857', right: '#065f46', stroke: '#34d399', opacity: 1.0, textClass: 'text-emerald-400' }},
+          delayed: {{ top: '#e11d48', left: '#be123c', right: '#9f1239', stroke: '#fb7185', opacity: 1.0, textClass: 'text-rose-400' }}
+        }};
+
+        const c = colors[colorStatus];
+
+        // Apply to 3D SVG tile elements
+        const tileGroup = document.getElementById('fourdTile-' + z);
+        if (tileGroup) {{
+          const topFace = tileGroup.querySelector('.tile-top');
+          const leftFace = tileGroup.querySelector('.tile-left');
+          const rightFace = tileGroup.querySelector('.tile-right');
+          const basePlane = tileGroup.querySelector('.base-plane');
+
+          if (topFace) topFace.setAttribute('fill', c.top);
+          if (leftFace) leftFace.setAttribute('fill', c.left);
+          if (rightFace) rightFace.setAttribute('fill', c.right);
+          if (basePlane) basePlane.setAttribute('fill', colorStatus === 'complete' ? '#065f46' : (colorStatus === 'progress' ? '#0369a1' : '#1e293b'));
+
+          tileGroup.style.opacity = c.opacity;
+        }}
+
+        // If Superstructure L1 sub-group exists
+        if (z === 'ZONE-TOW') {{
+          const towL1 = document.getElementById('fourdTile-ZONE-TOW-L1');
+          if (towL1) {{
+            const towPct = pct;
+            const towL1c = towPct >= 50 ? colors.complete : (towPct > 0 ? colors.progress : colors.unstarted);
+            towL1.querySelectorAll('.tile-top').forEach(el => el.setAttribute('fill', towL1c.top));
+            towL1.querySelectorAll('.tile-left').forEach(el => el.setAttribute('fill', towL1c.left));
+            towL1.querySelectorAll('.tile-right').forEach(el => el.setAttribute('fill', towL1c.right));
+            towL1.style.opacity = towL1c.opacity;
+          }}
+        }}
+
+        // Update Bottom Card
+        const pctEl = document.getElementById('tilePct-' + z);
+        const stateEl = document.getElementById('tileState-' + z);
+        const cardEl = document.getElementById('tileCard-' + z);
+        if (pctEl) pctEl.innerText = pct + '%';
+        if (stateEl) {{
+          stateEl.innerText = colorStatus.toUpperCase();
+          stateEl.className = `text-[9px] uppercase font-semibold ${{c.textClass}}`;
+        }}
+        if (cardEl) {{
+          cardEl.className = `bg-slate-900 border rounded-xl p-2 cursor-pointer transition ${{fourdSelectedZone === z ? 'border-cyan-400 shadow-md shadow-cyan-500/20' : 'border-slate-800 hover:border-slate-700'}}`;
+        }}
+      }});
+
+      // Render Active Activities List
+      renderFourdTaskList(activeTasksAtDate);
+    }}
+
+    function renderFourdTaskList(taskList) {{
+      const container = document.getElementById('fourdActiveTasksList');
+      if (!container) return;
+
+      let filtered = taskList;
+      if (fourdSelectedZone) {{
+        filtered = taskList.filter(t => t.area_code === fourdSelectedZone);
+      }}
+
+      if (filtered.length === 0) {{
+        container.innerHTML = `
+          <div class="p-6 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
+            <svg class="w-8 h-8 mx-auto text-slate-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-xs font-semibold">No active tasks executing on this date</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Scrub the time slipper bar to step forward</p>
+          </div>
+        `;
+        return;
+      }}
+
+      container.innerHTML = filtered.map(t => `
+        <div class="p-2.5 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-cyan-300 transition shadow-2xs">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <div class="flex items-center gap-1.5 font-bold text-slate-800">
+              <span class="font-mono text-cyan-700 font-bold">${{t.task_code}}</span>
+              <span class="truncate max-w-[170px]" title="${{t.task_name}}">${{t.task_name}}</span>
+            </div>
+            <span class="font-mono text-[11px] font-bold text-cyan-600">${{t.simPct}}%</span>
+          </div>
+          <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-cyan-500 h-1.5 rounded-full transition-all duration-200" style="width: ${{t.simPct}}%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-slate-500 mt-1.5">
+            <span>${{t.area_name || t.area_code}}</span>
+            <span class="font-mono text-slate-400">${{t.curr_start}} &rarr; ${{t.curr_end}}</span>
+          </div>
+        </div>
+      `).join('');
+    }}
+
+    function selectFourdTile(zoneCode, zoneName) {{
+      fourdSelectedZone = zoneCode;
+      document.getElementById('fourdSelectedTileName').innerText = zoneName || 'All Zones (Entire Project)';
+
+      // Calculate progress of selected zone
+      let progText = '0.0%';
+      if (zoneCode) {{
+        const pctEl = document.getElementById('tilePct-' + zoneCode);
+        if (pctEl) progText = pctEl.innerText;
+      }} else {{
+        progText = document.getElementById('fourdSimPctBadge').innerText;
+      }}
+      document.getElementById('fourdSelectedTileProgress').innerText = progText;
+
+      // Re-filter the active tasks list
+      if (fourdCurrentSimDate) {{
+        updateFourdElementsState(fourdCurrentSimDate);
+      }}
+    }}
+
+    function toggleFourdPlay() {{
+      fourdIsPlaying = !fourdIsPlaying;
+      const btn = document.getElementById('fourdBtnPlay');
+      const text = document.getElementById('fourdPlayText');
+      const icon = document.getElementById('fourdPlayIcon');
+
+      if (fourdIsPlaying) {{
+        text.innerText = 'Pause';
+        btn.classList.remove('bg-cyan-500', 'text-slate-950');
+        btn.classList.add('bg-amber-500', 'text-slate-950');
+        icon.innerHTML = '<rect x="4" y="3" width="4" height="14"/><rect x="12" y="3" width="4" height="14"/>';
+        startFourdPlayback();
+      }} else {{
+        text.innerText = 'Play Simulation';
+        btn.classList.remove('bg-amber-500');
+        btn.classList.add('bg-cyan-500', 'text-slate-950');
+        icon.innerHTML = '<path d="M4 4l12 6-12 6z"/>';
+        stopFourdPlayback();
+      }}
+    }}
+
+    function startFourdPlayback() {{
+      stopFourdPlayback();
+      const slider = document.getElementById('fourdTimelineSlider');
+      const intervalMs = Math.max(40, Math.round(250 / fourdPlaySpeed));
+
+      fourdSimTimer = setInterval(() => {{
+        let currVal = parseInt(slider.value, 10);
+        if (currVal >= parseInt(slider.max, 10)) {{
+          currVal = 0; // Loop or stop
+        }} else {{
+          currVal += 1;
+        }}
+        slider.value = currVal;
+        onFourdSliderChange(currVal);
+      }}, intervalMs);
+    }}
+
+    function stopFourdPlayback() {{
+      if (fourdSimTimer) {{
+        clearInterval(fourdSimTimer);
+        fourdSimTimer = null;
+      }}
+    }}
+
+    function stepFourdSlider(delta) {{
+      if (fourdIsPlaying) toggleFourdPlay();
+      const slider = document.getElementById('fourdTimelineSlider');
+      let currVal = parseInt(slider.value, 10) + delta;
+      currVal = Math.max(0, Math.min(currVal, parseInt(slider.max, 10)));
+      slider.value = currVal;
+      onFourdSliderChange(currVal);
+    }}
+
+    function resetFourdTimeline() {{
+      if (fourdIsPlaying) toggleFourdPlay();
+      const slider = document.getElementById('fourdTimelineSlider');
+      slider.value = 0;
+      onFourdSliderChange(0);
+    }}
+
+    function jumpFourdToCutoff() {{
+      if (fourdIsPlaying) toggleFourdPlay();
+      const pInfo = projectData.project_info || {{}};
+      const dataDtStr = pInfo.data_date;
+      if (!dataDtStr || !fourdSimStartDate) return;
+
+      const dataDt = new Date(dataDtStr + 'T00:00:00');
+      const dayDiff = Math.max(0, Math.round((dataDt - fourdSimStartDate) / (1000 * 60 * 60 * 24)));
+      const slider = document.getElementById('fourdTimelineSlider');
+      slider.value = Math.min(dayDiff, parseInt(slider.max, 10));
+      onFourdSliderChange(slider.value);
+    }}
+
+    function setFourdSpeed(speed) {{
+      fourdPlaySpeed = speed;
+      [1, 2, 5].forEach(s => {{
+        const btn = document.getElementById('fourdSpeed' + s);
+        if (btn) {{
+          if (s === speed) {{
+            btn.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-500 text-slate-950';
+          }} else {{
+            btn.className = 'px-2 py-0.5 rounded text-[11px] font-bold text-slate-400 hover:text-white';
+          }}
+        }}
+      }});
+      if (fourdIsPlaying) {{
+        startFourdPlayback();
+      }}
+    }}
+
 
     // ========================================================
     // CLIENT-SIDE XER ENGINE (Supports Offline / Standalone file:// mode)

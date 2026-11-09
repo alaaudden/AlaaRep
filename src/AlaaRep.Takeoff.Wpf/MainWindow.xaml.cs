@@ -856,14 +856,46 @@ public partial class MainWindow : Window
                 }
             }
 
-            // 2. Draw CAD / PDF Vector Entities directly via DrawingContext (filtered by layer visibility)
-            foreach (var entity in _doc.Entities)
+            // 2. High-Performance Viewport Frustum Culling & Sub-pixel Line Decimation (AutoCAD / Revit style)
+            // Compute visible drawing bounds in drawing coordinates
+            double vpW = ViewportGrid.ActualWidth > 0 ? ViewportGrid.ActualWidth : 1200;
+            double vpH = ViewportGrid.ActualHeight > 0 ? ViewportGrid.ActualHeight : 800;
+            var topLeftDraw = ScreenToDrawing(new System.Windows.Point(0, 0));
+            var bottomRightDraw = ScreenToDrawing(new System.Windows.Point(vpW, vpH));
+
+            var frustumBounds = new BoundingBox2D(
+                Math.Min(topLeftDraw.X, bottomRightDraw.X) - 50,
+                Math.Min(topLeftDraw.Y, bottomRightDraw.Y) - 50,
+                Math.Max(topLeftDraw.X, bottomRightDraw.X) + 50,
+                Math.Max(topLeftDraw.Y, bottomRightDraw.Y) + 50);
+
+            // Query spatial QuadTree to only retrieve visible entities in O(log N) time
+            var visibleEntities = new List<DrawingEntity>();
+            var spatialIndex = _doc.GetOrBuildSpatialIndex();
+            spatialIndex.Query(frustumBounds, visibleEntities);
+
+            double currentScale = Math.Max(0.01, CanvasScale.ScaleX);
+            double minPixelSpan = 1.0 / currentScale; // Entities smaller than 1 screen pixel are decimated
+
+            foreach (var entity in visibleEntities)
             {
                 string layerKey = string.IsNullOrWhiteSpace(entity.Layer) ? "0 (Default)" : entity.Layer;
                 if (_layerVisibility.TryGetValue(layerKey, out bool isVis) && !isVis)
                 {
                     continue; // Layer is hidden
                 }
+
+                // Sub-pixel line decimation: skip micro-geometry that cannot be resolved at current zoom level
+                if (entity.Points.Count >= 2 && entity.Type != DrawingEntityType.Circle)
+                {
+                    double dx = entity.Points[^1].X - entity.Points[0].X;
+                    double dy = entity.Points[^1].Y - entity.Points[0].Y;
+                    if ((dx * dx + dy * dy) < (minPixelSpan * minPixelSpan) && entity.Type != DrawingEntityType.Text)
+                    {
+                        continue; // Decimated: smaller than 1 pixel
+                    }
+                }
+
                 DrawEntityDirect(dc, entity);
             }
 

@@ -67,6 +67,16 @@ private:
     GLuint m_texShaderProgram = 0;
     GLuint m_vbo = 0;
     GLuint m_vao = 0;
+
+    // Static CAD Entity GPU VBO Cache (AutoCAD Display List / Retained VBO acceleration)
+    GLuint m_staticCadVao = 0;
+    GLuint m_staticCadVbo = 0;
+    size_t m_staticCadVertexCount = 0;
+    size_t m_cachedCadEntityCount = 0;
+
+public:
+    void BuildStaticCadCache(const std::vector<DrawingEntity>& entities);
+    void InvalidateCadCache();
 };
 
 } // namespace AlaaRep::Takeoff

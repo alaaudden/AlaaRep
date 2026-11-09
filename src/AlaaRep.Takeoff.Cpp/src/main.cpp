@@ -438,9 +438,9 @@ int main(int argc, char** argv) {
                 if (ImGui::BeginTabBar("MainStudioTabs")) {
                     // TAB 1: BIM INSPECTOR
                     if (ImGui::BeginTabItem("Inspector")) {
-                        if (ImGui::CollapsingHeader("📁 DRAWING INGESTION (PDF / CAD / RASTER)", ImGuiTreeNodeFlags_DefaultOpen)) {
+                        if (ImGui::CollapsingHeader("📁 DRAWING INGESTION (PDF / CAD / RASTER / BLUEBEAM)", ImGuiTreeNodeFlags_DefaultOpen)) {
                             ImGui::InputText("File Path", loadFilePath, sizeof(loadFilePath));
-                            if (ImGui::Button("Load Background Image")) {
+                            if (ImGui::Button("Load Image")) {
                                 PlanImageData img;
                                 if (TakeoffParsers::LoadPlanImage(loadFilePath, img)) {
                                     doc.backgroundImage = img;
@@ -460,6 +460,21 @@ int main(int argc, char** argv) {
                                     doc.height = img.height;
                                     renderer.UpdateTexture(img);
                                     renderer.ZoomFit(doc.width, doc.height);
+                                    syncLayers();
+                                }
+                            }
+                            ImGui::SameLine();
+                            if (ImGui::Button("Load CAD DXF")) {
+                                if (TakeoffParsers::ReadDxf(loadFilePath, doc)) {
+                                    syncLayers();
+                                    renderer.ZoomFit(doc.width, doc.height);
+                                }
+                            }
+                            ImGui::SameLine();
+                            if (ImGui::Button("Load Bluebeam CSV")) {
+                                std::vector<TakeoffObject> bbObjects;
+                                if (TakeoffParsers::ReadBluebeamCsv(loadFilePath, bbObjects)) {
+                                    doc.takeoffObjects.insert(doc.takeoffObjects.end(), bbObjects.begin(), bbObjects.end());
                                     syncLayers();
                                 }
                             }

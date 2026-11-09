@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <cstring>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
@@ -184,6 +185,22 @@ bool TakeoffParsers::ReadBluebeamCsv(const std::string& csvContentOrPath, std::v
 }
 
 bool TakeoffParsers::ReadDxf(const std::string& dxfFilePath, DrawingDocument& outDoc, double maxEntities) {
+    // 1. Validate if this is a binary DWG file mistakenly supplied or opened
+    std::ifstream checkFile(dxfFilePath, std::ios::binary);
+    if (!checkFile.is_open()) return false;
+    char magic[6] = {0};
+    checkFile.read(magic, 5);
+    checkFile.close();
+
+    // Check for AutoCAD binary DWG headers: AC1015, AC1018, AC1021, AC1024, AC1027, AC1032, etc.
+    if (std::strncmp(magic, "AC10", 4) == 0) {
+        std::cerr << "[TakeoffParsers] Warning: '" << dxfFilePath
+                  << "' is a binary AutoCAD DWG file, not an ASCII DXF stream. "
+                  << "Binary DWG files cannot be parsed directly as ASCII text without converting to DXF or pre-rendering to image. "
+                  << "Skipping text parser to prevent freezing or hanging.\n";
+        return false;
+    }
+
     std::ifstream file(dxfFilePath);
     if (!file.is_open()) return false;
 

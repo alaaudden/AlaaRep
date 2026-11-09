@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AlaaRep.Takeoff.Core/AlaaRep.Takeoff.Core.csproj" />
+    <Project Path="src/AlaaRep.Takeoff.Web/AlaaRep.Takeoff.Web.csproj" />
+    <Project Path="src/AlaaRep.Takeoff.Wpf/AlaaRep.Takeoff.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AlaaRep.Takeoff.Tests/AlaaRep.Takeoff.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="IxMilia.Dxf" Version="0.8.4" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+  </ItemGroup>
+
+  <Target Name="BuildNativeLib" BeforeTargets="BeforeBuild" Condition="'$(OS)' != 'Windows_NT' Or Exists('C:\Program Files\CMake\bin\cmake.exe')">
+    <Exec Command="cmake -B ../AlaaRep.Takeoff.Native/build ../AlaaRep.Takeoff.Native &amp;&amp; cmake --build ../AlaaRep.Takeoff.Native/build --config Release" ContinueOnError="true" IgnoreExitCode="true" />
+    <MakeDir Directories="$(OutputPath)runtimes/linux-x64/native" Condition="Exists('../AlaaRep.Takeoff.Native/build/libtakeoff_spatial.so')" />
+    <Copy SourceFiles="../AlaaRep.Takeoff.Native/build/libtakeoff_spatial.so" DestinationFolder="$(OutputPath)runtimes/linux-x64/native" Condition="Exists('../AlaaRep.Takeoff.Native/build/libtakeoff_spatial.so')" />
+    <Copy SourceFiles="../AlaaRep.Takeoff.Native/build/libtakeoff_spatial.so" DestinationFolder="$(OutputPath)" Condition="Exists('../AlaaRep.Takeoff.Native/build/libtakeoff_spatial.so')" />
+  </Target>
+
+</Project>

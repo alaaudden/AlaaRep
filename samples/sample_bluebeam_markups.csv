@@ -1,0 +1,7 @@
+Subject,Label,Measurement Type,Count,Length,Area,Space,Layer,Comments,Points
+Flooring - Polished Terrazzo,Zone 1 Lobby Area,Area,1,,42.50,Zone A - Entrance,ARCH-FLOOR,Spec 09 66 00,"100 100; 400 100; 400 350; 100 350"
+Drywall Partition Type A,West Corridor Partition,Length,1,18.75,,Zone B - Corridor,ARCH-WALLS,1-hr fire rated,"100 350; 450 350"
+Electrical Duplex Outlet,Receptacle 120V,Count,6,,,Zone A - Entrance,ELEC-POWER,NEMA 5-20R,"150 120; 250 120; 350 120; 150 300; 250 300; 350 300"
+HVAC Supply Diffuser 2x2,VAV Diffuser 400CFM,Count,4,,,Zone B - Corridor,MECH-HVAC,T-bar lay-in,"200 200; 300 200; 200 280; 300 280"
+Plumbing Cold Water Pipe,Domestic CW 1-1/4",Length,1,24.20,,Zone C - Restrooms,PLUMB-WATER,Type L Copper,"120 150; 120 320; 300 320"
+Ceramic Wall Tile,Restroom Wet Wall,Area,1,,31.80,Zone C - Restrooms,ARCH-FINISH,Porcelain 12x24,"200 150; 380 150; 380 320; 200 320"

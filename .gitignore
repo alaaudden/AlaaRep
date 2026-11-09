@@ -1,0 +1,16 @@
+bin/
+obj/
+*.user
+*.suo
+.vscode/
+.idea/
+build/
+**/build/
+CMakeFiles/
+**/CMakeFiles/
+CMakeCache.txt
+**/CMakeCache.txt
+*.so
+*.dll
+*.dylib
+*.a

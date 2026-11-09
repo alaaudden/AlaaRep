@@ -31,9 +31,16 @@ public:
     // Interactive shape drawing points
     std::vector<Point2D> inProgressPoints;
     std::string activeTool = "Select"; // Select, Length, Area, Zone, Count
+    std::map<std::string, bool> layerVisibility;
+
+    // Object picking & snapping
+    int FindObjectAt(Point2D pt, const DrawingDocument& doc, double tolerance = 15.0) const;
+    Point2D FindSnapPoint(Point2D pt, const DrawingDocument& doc, double tolerance, bool& outDidSnap, std::string& outSnapType) const;
 
     GLFWwindow* GetWindow() const { return m_window; }
     double GetZoom() const { return m_zoom; }
+
+    int selectedObjectIndex = -1;
 
 private:
     void InitShaders();

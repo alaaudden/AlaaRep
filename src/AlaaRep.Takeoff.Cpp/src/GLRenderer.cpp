@@ -213,6 +213,82 @@ Point2D GLRenderer::DrawingToScreen(double drawX, double drawY) const {
     return Point2D(drawX * m_zoom + m_panX, drawY * m_zoom + m_panY);
 }
 
+static double DistToSeg(Point2D p, Point2D v, Point2D w) {
+    double l2 = (w.x - v.x) * (w.x - v.x) + (w.y - v.y) * (w.y - v.y);
+    if (l2 < 1e-9) return p.distanceTo(v);
+    double t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = std::max(0.0, std::min(1.0, t));
+    Point2D proj(v.x + t * (w.x - v.x), v.y + t * (w.y - v.y));
+    return p.distanceTo(proj);
+}
+
+int GLRenderer::FindObjectAt(Point2D pt, const DrawingDocument& doc, double tolerance) const {
+    double effTol = tolerance / m_zoom;
+    for (int i = (int)doc.takeoffObjects.size() - 1; i >= 0; --i) {
+        const auto& obj = doc.takeoffObjects[i];
+        if (obj.measurementType == MeasurementType::Count) {
+            for (const auto& p : obj.points) {
+                if (p.distanceTo(pt) <= effTol) return i;
+            }
+        } else if (obj.measurementType == MeasurementType::Length) {
+            for (size_t k = 0; k + 1 < obj.points.size(); ++k) {
+                if (DistToSeg(pt, obj.points[k], obj.points[k + 1]) <= effTol) return i;
+            }
+        } else if (obj.measurementType == MeasurementType::Area) {
+            bool inside = false;
+            size_t j = obj.points.size() - 1;
+            for (size_t k = 0; k < obj.points.size(); ++k) {
+                if (((obj.points[k].y > pt.y) != (obj.points[j].y > pt.y)) &&
+                    (pt.x < (obj.points[j].x - obj.points[k].x) * (pt.y - obj.points[k].y) / (obj.points[j].y - obj.points[k].y) + obj.points[k].x)) {
+                    inside = !inside;
+                }
+                j = k;
+            }
+            if (inside) return i;
+        }
+    }
+    return -1;
+}
+
+Point2D GLRenderer::FindSnapPoint(Point2D pt, const DrawingDocument& doc, double tolerance, bool& outDidSnap, std::string& outSnapType) const {
+    outDidSnap = false;
+    double bestDist = tolerance / m_zoom;
+    Point2D bestPt = pt;
+
+    // Check endpoints
+    for (const auto& obj : doc.takeoffObjects) {
+        for (const auto& p : obj.points) {
+            double d = pt.distanceTo(p);
+            if (d < bestDist) {
+                bestDist = d;
+                bestPt = p;
+                outDidSnap = true;
+                outSnapType = "Endpoint";
+            }
+        }
+    }
+
+    // Check midpoints if no close endpoint
+    if (!outDidSnap) {
+        for (const auto& obj : doc.takeoffObjects) {
+            if (obj.points.size() >= 2) {
+                for (size_t i = 0; i + 1 < obj.points.size(); ++i) {
+                    Point2D mid((obj.points[i].x + obj.points[i + 1].x) * 0.5, (obj.points[i].y + obj.points[i + 1].y) * 0.5);
+                    double d = pt.distanceTo(mid);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        bestPt = mid;
+                        outDidSnap = true;
+                        outSnapType = "Midpoint";
+                    }
+                }
+            }
+        }
+    }
+
+    return bestPt;
+}
+
 void GLRenderer::Render(const DrawingDocument& doc) {
     if (!m_window) return;
 
@@ -253,17 +329,12 @@ void GLRenderer::Render(const DrawingDocument& doc) {
 void GLRenderer::DrawBackgroundTexture(double w, double h, double opacity) {
     glUseProgram(m_texShaderProgram);
 
-    // Orthographic Projection Matrix mapping drawing coords directly to normalized device coords
-    float left = 0.0f, right = (float)m_windowWidth;
-    float top = 0.0f, bottom = (float)m_windowHeight;
-
     // View transform
     Point2D p0 = DrawingToScreen(0, 0);
     Point2D p1 = DrawingToScreen(w, 0);
     Point2D p2 = DrawingToScreen(w, h);
     Point2D p3 = DrawingToScreen(0, h);
 
-    // Normalize to OpenGL NDC (-1 to 1)
     auto toNdcX = [&](double sx) { return (float)((sx / m_windowWidth) * 2.0 - 1.0); };
     auto toNdcY = [&](double sy) { return (float)(1.0 - (sy / m_windowHeight) * 2.0); };
 
@@ -277,7 +348,6 @@ void GLRenderer::DrawBackgroundTexture(double w, double h, double opacity) {
         toNdcX(p3.x), toNdcY(p3.y), 0.0f, 1.0f
     };
 
-    // Identity projection since coordinates are already NDC
     float ident[16] = {
         1, 0, 0, 0,
         0, 1, 0, 0,
@@ -316,6 +386,10 @@ void GLRenderer::DrawVectorEntities(const std::vector<DrawingEntity>& entities) 
 
     std::vector<float> lineData;
     for (const auto& ent : entities) {
+        if (!layerVisibility.empty()) {
+            auto it = layerVisibility.find(ent.layer);
+            if (it != layerVisibility.end() && !it->second) continue;
+        }
         if (ent.points.size() < 2) continue;
         for (size_t i = 0; i + 1 < ent.points.size(); ++i) {
             Point2D s1 = DrawingToScreen(ent.points[i].x, ent.points[i].y);
@@ -396,8 +470,12 @@ void GLRenderer::DrawTakeoffObjects(const std::vector<TakeoffObject>& objects) {
     auto toNdcX = [&](double sx) { return (float)((sx / m_windowWidth) * 2.0 - 1.0); };
     auto toNdcY = [&](double sy) { return (float)(1.0 - (sy / m_windowHeight) * 2.0); };
 
-    for (const auto& obj : objects) {
+    for (size_t idx = 0; idx < objects.size(); ++idx) {
+        const auto& obj = objects[idx];
         if (obj.points.empty()) continue;
+
+        bool isSelected = (selectedObjectIndex == (int)idx);
+        float lineThick = isSelected ? 4.0f : 2.5f;
 
         if (obj.measurementType == MeasurementType::Length && obj.points.size() >= 2) {
             std::vector<float> lineData;
@@ -422,7 +500,7 @@ void GLRenderer::DrawTakeoffObjects(const std::vector<TakeoffObject>& objects) {
             glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(2 * sizeof(float)));
             glEnableVertexAttribArray(1);
 
-            glLineWidth(3.0f);
+            glLineWidth(lineThick);
             glDrawArrays(GL_LINES, 0, (GLsizei)(lineData.size() / 6));
         } else if (obj.measurementType == MeasurementType::Area && obj.points.size() >= 3) {
             // Draw filled polygon (triangle fan from vertex 0)
@@ -482,13 +560,12 @@ void GLRenderer::DrawTakeoffObjects(const std::vector<TakeoffObject>& objects) {
                 glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(2 * sizeof(float)));
                 glEnableVertexAttribArray(1);
 
-                glLineWidth(2.5f);
+                glLineWidth(lineThick);
                 glDrawArrays(GL_LINES, 0, (GLsizei)(lineData.size() / 6));
             }
         } else if (obj.measurementType == MeasurementType::Count) {
-            // Draw point glyphs as quads
             std::vector<float> quadData;
-            double glyphSize = 7.0;
+            double glyphSize = isSelected ? 9.0 : 7.0;
             for (const auto& pt : obj.points) {
                 Point2D s = DrawingToScreen(pt.x, pt.y);
                 double x0 = s.x - glyphSize, y0 = s.y - glyphSize;

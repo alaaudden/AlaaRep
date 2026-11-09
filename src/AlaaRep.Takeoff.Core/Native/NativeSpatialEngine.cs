@@ -67,6 +67,43 @@ public static class NativeSpatialEngine
             {
                 NativeLibrary.TryLoad(repoNativePath, out _);
             }
+            else
+            {
+                // Auto-compile native C++ library on clean checkouts if cmake is available
+                string nativeDir = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "src", "AlaaRep.Takeoff.Native"));
+                if (Directory.Exists(nativeDir))
+                {
+                    try
+                    {
+                        var psi = new System.Diagnostics.ProcessStartInfo("cmake")
+                        {
+                            Arguments = $"-B \"{Path.Combine(nativeDir, "build")}\" \"{nativeDir}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        var proc = System.Diagnostics.Process.Start(psi);
+                        proc?.WaitForExit();
+
+                        psi = new System.Diagnostics.ProcessStartInfo("cmake")
+                        {
+                            Arguments = $"--build \"{Path.Combine(nativeDir, "build")}\" --config Release",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        proc = System.Diagnostics.Process.Start(psi);
+                        proc?.WaitForExit();
+
+                        if (File.Exists(repoNativePath))
+                        {
+                            NativeLibrary.TryLoad(repoNativePath, out _);
+                        }
+                    }
+                    catch
+                    {
+                        // Fall back to managed
+                    }
+                }
+            }
 
             double[] dummy = { 0, 0, 10, 0, 10, 10, 0, 10 };
             double area = NativePolygonArea(dummy, 4);

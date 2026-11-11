@@ -122,4 +122,34 @@ Fire Sprinkler,Page 1,Pendant Head,12 count,,,,Fire Protection,120.00,Zone 1";
         Assert.Equal(3840, doc.Width);
         Assert.Equal(2160, doc.Height);
     }
+
+    [Fact]
+    public void BluebeamMarkupReader_DistinguishesLinesFromAreasCorrectly()
+    {
+        // When CSV contains Area and Length columns side-by-side, lines must be Length and areas must be Area
+        string csv = @"Subject,Label,Measurement Type,Count,Length,Area,WallArea,Space,Layer,Height,Cost,Points
+A-WALL,Interior Partition,Length,1,25.50,0.00,76.50,Zone 1,A-WALL,3.00,1200.00,""100.00,100.00; 300.00,100.00; 300.00,250.00""
+A-FLOR,Wood Flooring,Area,1,0.00,150.00,0.00,Zone 1,A-FLOR,0.00,6750.00,""100.00,100.00; 300.00,100.00; 300.00,250.00; 100.00,250.00""
+A-DOOR,Single Flush Door,Count,5,0.00,0.00,0.00,Zone 2,A-DOOR,0.00,2500.00,""150.00,150.00; 250.00,150.00""";
+
+        var reader = new BluebeamMarkupReader();
+        var markups = reader.ReadCsvMarkups(csv);
+
+        Assert.Equal(3, markups.Count);
+
+        // 1. Line/Wall must be TakeoffMeasurementType.Length, NOT Area!
+        Assert.Equal("Interior Partition", markups[0].Name);
+        Assert.Equal(TakeoffMeasurementType.Length, markups[0].MeasurementType);
+        Assert.Equal(3, markups[0].GeometryPoints.Count);
+
+        // 2. Floor must be TakeoffMeasurementType.Area
+        Assert.Equal("Wood Flooring", markups[1].Name);
+        Assert.Equal(TakeoffMeasurementType.Area, markups[1].MeasurementType);
+        Assert.Equal(4, markups[1].GeometryPoints.Count);
+
+        // 3. Door must be TakeoffMeasurementType.Count
+        Assert.Equal("Single Flush Door", markups[2].Name);
+        Assert.Equal(TakeoffMeasurementType.Count, markups[2].MeasurementType);
+        Assert.Equal(2, markups[2].GeometryPoints.Count);
+    }
 }

@@ -156,19 +156,55 @@ bool TakeoffParsers::ReadBluebeamCsv(const std::string& csvContentOrPath, std::v
         }
 
         // Parse measurement type
-        if (colMap.count("Area") && colMap["Area"] < (int)cols.size() && !cols[colMap["Area"]].empty()) {
-            obj.measurementType = MeasurementType::Area;
-            obj.colorHex = "#10B981";
-            obj.r = 0.06f; obj.g = 0.72f; obj.b = 0.50f;
-        } else if (colMap.count("Length") && colMap["Length"] < (int)cols.size() && !cols[colMap["Length"]].empty()) {
+        std::string mType = colMap.count("Measurement Type") && colMap["Measurement Type"] < (int)cols.size() ? cols[colMap["Measurement Type"]] : "";
+        std::string areaVal = colMap.count("Area") && colMap["Area"] < (int)cols.size() ? cols[colMap["Area"]] : "";
+        std::string lengthVal = colMap.count("Length") && colMap["Length"] < (int)cols.size() ? cols[colMap["Length"]] : "";
+
+        if (mType == "Length" || mType == "Line" || mType == "Polyline") {
             obj.measurementType = MeasurementType::Length;
             obj.colorHex = "#EF4444";
             obj.r = 0.94f; obj.g = 0.27f; obj.b = 0.27f;
-            if (obj.height <= 0.0) obj.height = 3.0; // default wall height
+            if (obj.height <= 0.0) obj.height = 3.0;
+        } else if (mType == "Area" || mType == "Polygon") {
+            obj.measurementType = MeasurementType::Area;
+            obj.colorHex = "#10B981";
+            obj.r = 0.06f; obj.g = 0.72f; obj.b = 0.50f;
+        } else if (mType == "Count") {
+            obj.measurementType = MeasurementType::Count;
+            obj.colorHex = "#3B82F6";
+            obj.r = 0.23f; obj.g = 0.51f; obj.b = 0.96f;
+        } else if (!lengthVal.empty() && (areaVal.empty() || areaVal == "0" || areaVal == "0.00" || areaVal == "0.0")) {
+            obj.measurementType = MeasurementType::Length;
+            obj.colorHex = "#EF4444";
+            obj.r = 0.94f; obj.g = 0.27f; obj.b = 0.27f;
+            if (obj.height <= 0.0) obj.height = 3.0;
+        } else if (!areaVal.empty() && areaVal != "0" && areaVal != "0.00" && areaVal != "0.0") {
+            obj.measurementType = MeasurementType::Area;
+            obj.colorHex = "#10B981";
+            obj.r = 0.06f; obj.g = 0.72f; obj.b = 0.50f;
         } else {
             obj.measurementType = MeasurementType::Count;
             obj.colorHex = "#3B82F6";
             obj.r = 0.23f; obj.g = 0.51f; obj.b = 0.96f;
+        }
+
+        // Parse geometry coordinates from Points column if present: "x1,y1; x2,y2; ..."
+        if (colMap.count("Points") && colMap["Points"] < (int)cols.size() && !cols[colMap["Points"]].empty()) {
+            std::stringstream pss(cols[colMap["Points"]]);
+            std::string pair;
+            while (std::getline(pss, pair, ';')) {
+                // Trim leading/trailing whitespace
+                while (!pair.empty() && (pair.front() == ' ' || pair.front() == '"')) pair.erase(pair.begin());
+                while (!pair.empty() && (pair.back() == ' ' || pair.back() == '"')) pair.pop_back();
+                size_t comma = pair.find(',');
+                if (comma != std::string::npos) {
+                    try {
+                        double px = std::stod(pair.substr(0, comma));
+                        double py = std::stod(pair.substr(comma + 1));
+                        obj.points.emplace_back(px, py);
+                    } catch (...) {}
+                }
+            }
         }
 
         // Store BIM properties

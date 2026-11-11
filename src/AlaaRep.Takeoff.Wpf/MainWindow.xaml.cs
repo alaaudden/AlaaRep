@@ -2212,32 +2212,34 @@ public partial class MainWindow : Window
     {
         var sfd = new SaveFileDialog
         {
-            Filter = "CSV File (*.csv)|*.csv",
-            FileName = $"QTO_Takeoff_Report_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            Filter = "Bluebeam / CAD Markups CSV (*.csv)|*.csv|All Files (*.*)|*.*",
+            FileName = $"Takeoff_Markups_With_Geometry_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
         };
         if (sfd.ShowDialog() == true)
         {
             var report = _engine.CalculateReport(_doc);
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("ID,Name,Category,MeasurementType,Zone,Height,Count,Length,FloorArea,WallArea,Cost");
+            // Bluebeam Revu interchange format with Points / Coordinates column
+            sb.AppendLine("Subject,Label,Measurement Type,Count,Length,Area,WallArea,Space,Layer,Height,Cost,Points");
 
-            foreach (var item in report.Items)
+            foreach (var obj in _doc.TakeoffObjects)
             {
-                if (item.ZoneBreakdowns.Count > 0)
-                {
-                    foreach (var zb in item.ZoneBreakdowns)
-                    {
-                        sb.AppendLine($"\"{item.ObjectId}\",\"{item.Name}\",\"{item.Category}\",\"{item.MeasurementType}\",\"{zb.ZoneName}\",{item.Height:F2},{zb.Count},{zb.Length:F2},{zb.Area:F2},{zb.WallArea:F2},{zb.Cost:F2}");
-                    }
-                }
-                else
-                {
-                    sb.AppendLine($"\"{item.ObjectId}\",\"{item.Name}\",\"{item.Category}\",\"{item.MeasurementType}\",\"Unassigned\",{item.Height:F2},{item.TotalCount},{item.TotalLength:F2},{item.TotalArea:F2},{item.TotalWallArea:F2},{item.TotalCost:F2}");
-                }
+                var itemReport = report.Items.FirstOrDefault(i => i.ObjectId == obj.Id);
+                double cnt = (obj.MeasurementType == TakeoffMeasurementType.Count) ? obj.GeometryPoints.Count : 1;
+                double len = itemReport?.TotalLength ?? 0;
+                double area = itemReport?.TotalArea ?? 0;
+                double wallArea = itemReport?.TotalWallArea ?? 0;
+                double cost = itemReport?.TotalCost ?? 0;
+                string space = !string.IsNullOrEmpty(obj.ZoneId) ? obj.ZoneId : (itemReport?.ZoneBreakdowns.FirstOrDefault()?.ZoneName ?? "Unassigned");
+
+                // Serialize exact geometry coordinates for re-opening: "x1,y1; x2,y2; ..."
+                string pointsStr = string.Join("; ", obj.GeometryPoints.Select(p => $"{p.X:F2},{p.Y:F2}"));
+
+                sb.AppendLine($"\"{obj.Category}\",\"{obj.Name}\",\"{obj.MeasurementType}\",{cnt},{len:F2},{area:F2},{wallArea:F2},\"{space}\",\"{obj.Layer}\",{obj.Height:F2},{cost:F2},\"{pointsStr}\"");
             }
 
             File.WriteAllText(sfd.FileName, sb.ToString());
-            MessageBox.Show($"Takeoff Report exported successfully to {sfd.FileName}", "Export CSV", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"Takeoff objects and complete geometry data saved to {sfd.FileName}!\n\nYou can reopen this file anytime using 'Import Bluebeam'.", "Save Markups & Geometry", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 

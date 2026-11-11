@@ -71,25 +71,73 @@ public class BluebeamMarkupReader
                 ColorHex = GetColorForSubject(subject)
             };
 
-            if (headerMap.ContainsKey("Area") && !string.IsNullOrEmpty(GetCol("Area")))
+            // Prioritize explicit Measurement Type column first
+            string explicitType = GetCol("Measurement Type", "MeasurementType", "Type", "Tool");
+            string areaVal = GetCol("Area", "FloorArea");
+            string lengthVal = GetCol("Length");
+            string countVal = GetCol("Count");
+
+            bool typeDetermined = false;
+            if (!string.IsNullOrEmpty(explicitType))
             {
-                takeoff.MeasurementType = TakeoffMeasurementType.Area;
+                if (explicitType.Equals("Length", StringComparison.OrdinalIgnoreCase) ||
+                    explicitType.Equals("Line", StringComparison.OrdinalIgnoreCase) ||
+                    explicitType.Equals("Polyline", StringComparison.OrdinalIgnoreCase) ||
+                    explicitType.Equals("Wall", StringComparison.OrdinalIgnoreCase) ||
+                    explicitType.Equals("Perimeter", StringComparison.OrdinalIgnoreCase))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Length;
+                    typeDetermined = true;
+                }
+                else if (explicitType.Equals("Area", StringComparison.OrdinalIgnoreCase) ||
+                         explicitType.Equals("Polygon", StringComparison.OrdinalIgnoreCase) ||
+                         explicitType.Equals("Volume", StringComparison.OrdinalIgnoreCase))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Area;
+                    typeDetermined = true;
+                }
+                else if (explicitType.Equals("Count", StringComparison.OrdinalIgnoreCase))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Count;
+                    typeDetermined = true;
+                }
             }
-            else if (headerMap.ContainsKey("Length") && !string.IsNullOrEmpty(GetCol("Length")))
+
+            if (!typeDetermined)
             {
-                takeoff.MeasurementType = TakeoffMeasurementType.Length;
-            }
-            else if (subject.Contains("Area", StringComparison.OrdinalIgnoreCase) || subject.Contains("Polygon", StringComparison.OrdinalIgnoreCase))
-            {
-                takeoff.MeasurementType = TakeoffMeasurementType.Area;
-            }
-            else if (subject.Contains("Length", StringComparison.OrdinalIgnoreCase) || subject.Contains("Polyline", StringComparison.OrdinalIgnoreCase) || subject.Contains("Perimeter", StringComparison.OrdinalIgnoreCase))
-            {
-                takeoff.MeasurementType = TakeoffMeasurementType.Length;
-            }
-            else
-            {
-                takeoff.MeasurementType = TakeoffMeasurementType.Count;
+                // If not decided by explicit column, determine by non-empty measurement values
+                if (!string.IsNullOrEmpty(lengthVal) && (string.IsNullOrEmpty(areaVal) || areaVal == "0" || areaVal == "0.00" || areaVal == "0.0"))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Length;
+                }
+                else if (!string.IsNullOrEmpty(areaVal) && areaVal != "0" && areaVal != "0.00" && areaVal != "0.0")
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Area;
+                }
+                else if (!string.IsNullOrEmpty(countVal) && (string.IsNullOrEmpty(lengthVal) || lengthVal == "0") && (string.IsNullOrEmpty(areaVal) || areaVal == "0"))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Count;
+                }
+                else if (subject.Contains("Length", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Line", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Polyline", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Partition", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Wall", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Perimeter", StringComparison.OrdinalIgnoreCase))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Length;
+                }
+                else if (subject.Contains("Area", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Polygon", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Floor", StringComparison.OrdinalIgnoreCase) ||
+                         subject.Contains("Room", StringComparison.OrdinalIgnoreCase))
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Area;
+                }
+                else
+                {
+                    takeoff.MeasurementType = TakeoffMeasurementType.Count;
+                }
             }
 
             foreach (var kvp in headerMap)
